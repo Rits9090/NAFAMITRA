@@ -1,0 +1,188 @@
+{
+  "project_title": "NAFAMITRA — MSME Business Operating System & AI Voice Assistant",
+  "app_archetype": "Modern Indian Fintech (PhonePe / Paytm / Khatabook Aesthetic)",
+  "tagline": "ग्राहक बढ़ाओ, मुनाफ़ा बढ़ाओ!",
+  "design_philosophy": {
+    "core_principles": [
+      "Speed & High Readability: Indian shopkeepers need split-second clarity while multi-tasking behind counters.",
+      "Thumb-Zone Priority: Crucial actions (Scan QR, New Bill, Voice Mic, Udhaar entry) are within single-thumb reach.",
+      "Color-Coded Trust Economy: Instant recognition — Green (Income/Money In), Red (Udhaar/Expense/Money Out), Yellow (Pending/Discounts), Blue (Info/Inventory), Purple (AI Intelligence/Voice).",
+      "Tactile Cards Over Dense Tables: Card-based rows with big touch targets, avatar initials, high-contrast badges, and quick swipe/tap actions.",
+      "Continuous AI Voice Presence: Floating voice assistant widget with status animations on all screens for hands-free operation."
+    ]
+  },
+  "typography": {
+    "heading_font": "Outfit, Plus Jakarta Sans, sans-serif",
+    "body_font": "Plus Jakarta Sans, system-ui, sans-serif",
+    "mono_font": "JetBrains Mono, monospace (for currency, GST, total amounts, invoice IDs)",
+    "font_scale": {
+      "h1_hero": "text-3xl sm:text-4xl font-extrabold tracking-tight",
+      "h2_section": "text-xl sm:text-2xl font-bold tracking-tight",
+      "h3_card_title": "text-lg font-semibold",
+      "body_text": "text-sm sm:text-base font-medium leading-relaxed",
+      "small_label": "text-xs font-semibold uppercase tracking-wider text-muted-foreground",
+      "currency_large": "text-2xl sm:text-3xl font-bold font-mono tracking-tight"
+    }
+  },
+  "colors": {
+    "theme": "Light theme default with optional dark mode toggle",
+    "primary_brand": {
+      "green_emerald": "#10B981",
+      "emerald_dark": "#047857",
+      "emerald_light": "#ECFDF5",
+      "description": "Represents Sales, Profits, Positive Balance, Customer Add, Cash Collection"
+    },
+    "semantic_colors": {
+      "udhaar_expense_red": {
+        "hex": "#EF4444",
+        "bg_soft": "#FEF2F2",
+        "border": "#FCA5A5",
+        "label": "Udhaar Given / You Will Get / Expense / Out of Stock"
+      },
+      "positive_green": {
+        "hex": "#10B981",
+        "bg_soft": "#ECFDF5",
+        "border": "#6EE7B7",
+        "label": "Payment Received / Cash Collected / Profit / In Stock"
+      },
+      "warning_amber": {
+        "hex": "#F59E0B",
+        "bg_soft": "#FFFBEB",
+        "border": "#FDE68A",
+        "label": "Discount / Low Stock Alert / Udhaar Reminder Due"
+      },
+      "info_blue": {
+        "hex": "#3B82F6",
+        "bg_soft": "#EFF6FF",
+        "border": "#BFDBFE",
+        "label": "Invoices / Inventory Item / Supplier / Reports"
+      },
+      "ai_voice_purple": {
+        "hex": "#8B5CF6",
+        "hex_gradient": "from-purple-600 via-indigo-600 to-pink-500",
+        "bg_soft": "#F5F3FF",
+        "border": "#DDD6FE",
+        "label": "AI Voice Assistant / Business Copilot / Smart Insights"
+      }
+    },
+    "surface": {
+      "background_light": "#F8FAFC",
+      "card_light": "#FFFFFF",
+      "card_border": "#E2E8F0",
+      "header_glass": "rgba(255, 255, 255, 0.85)",
+      "background_dark": "#0F172A",
+      "card_dark": "#1E293B"
+    }
+  },
+  "layout_and_spacing": {
+    "container_max_width": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+    "mobile_bottom_nav_height": "h-16",
+    "card_padding": "p-4 sm:p-6",
+    "touch_target_min": "min-h-[44px] min-w-[44px]",
+    "grid_bento": "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6"
+  },
+  "voice_assistant_widget": {
+    "position": "fixed bottom-5 right-5 z-50",
+    "style": "Floating circular 56px action button with glowing purple-indigo ring and microphone icon",
+    "states": {
+      "idle": "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg hover:scale-105 transition-transform",
+      "listening": "bg-red-500 text-white animate-pulse ring-4 ring-red-300 shadow-xl",
+      "processing": "bg-purple-700 text-white animate-spin ring-4 ring-purple-300",
+      "speaking": "bg-emerald-600 text-white ring-4 ring-emerald-300 animate-bounce"
+    },
+    "voice_modal": "Full overlay or bottom sheet with wave visualizer, live Hindi/English transcription, and quick suggested command chips (e.g., 'Ramesh ko 500 ka udhaar add karo', 'Aaj ki total sale batao', 'Samosa ka stock update karo')"
+  },
+  "key_features_and_pages": [
+    {
+      "name": "Auth & Business Setup",
+      "path": "/auth",
+      "details": "Mobile OTP / Password login, Business Name, Store Category (Kirana, Apparel, Pharmacy, Electronics), GSTIN option, Hinglish toggle."
+    },
+    {
+      "name": "Main Dashboard",
+      "path": "/",
+      "details": "Daily Sales Metric Cards, Today's Profit, Udhaar Outstanding, Quick Action Grid (Scan QR, New Bill, Add Udhaar, Add Stock), AI Insight Chips, Sales Chart."
+    },
+    {
+      "name": "POS & Express Billing",
+      "path": "/pos",
+      "details": "Fast item search, barcode scan simulator, quick quantity increment (+/-), custom discount, customer attachment, cash/UPI/Udhaar payment mode, print/WhatsApp bill."
+    },
+    {
+      "name": "Customer Management & QR",
+      "path": "/customers",
+      "details": "Customer contact list, Udhaar status badges, individual profile with transaction ledger, generate custom Customer Digital Loyalty QR Card."
+    },
+    {
+      "name": "Product Catalogue & Inventory",
+      "path": "/inventory",
+      "details": "Item name, category, buy price, sell price, stock counter, low-stock threshold warning badge, quick stock refill modal."
+    },
+    {
+      "name": "Udhaar / Credit Ledger",
+      "path": "/udhaar",
+      "details": "Gave (You Gave Udhaar - Red) vs Got (Customer Paid - Green), send WhatsApp payment reminder button, auto interest calculator."
+    },
+    {
+      "name": "Supplier Management",
+      "path": "/suppliers",
+      "details": "Vendor directory, purchase orders, payable balance tracking, order re-stock flow."
+    },
+    {
+      "name": "Loyalty & Rewards",
+      "path": "/loyalty",
+      "details": "Points per purchase setup, reward tiers, redeem discount points at POS, customer loyalty rank."
+    },
+    {
+      "name": "Marketing & WhatsApp Campaigns",
+      "path": "/marketing",
+      "details": "Pre-made festival promo templates (Diwali, Eid, Holi, Sunday Sale), broadcast WhatsApp message simulator, promotional banner maker."
+    },
+    {
+      "name": "Reports & Analytics",
+      "path": "/reports",
+      "details": "Daily/Weekly/Monthly Revenue graphs, Profit Margin reports, Top Selling Products, Tax/GST summary download."
+    },
+    {
+      "name": "AI Voice Assistant Dedicated Page",
+      "path": "/voice-assistant",
+      "details": "Full conversational screen with mic waveform animation, voice command log history, sample commands in English & Hindi."
+    },
+    {
+      "name": "AI Business Chat Copilot",
+      "path": "/ai-chat",
+      "details": "Conversational assistant for 'Which product gives highest margin?', 'How to grow sales this week?', 'Draft reminder message'."
+    },
+    {
+      "name": "Settings & Staff Access",
+      "path": "/settings",
+      "details": "Store Profile, Staff Permissions (Cashier vs Manager), Print Receipt layout setup, Subscription Plan status."
+    },
+    {
+      "name": "Admin Panel (SaaS Management)",
+      "path": "/admin",
+      "details": "Multi-tenant tenant list, total registered shopkeepers, active subscriptions, revenue metrics, global system alerts."
+    }
+  ],
+  "image_urls": {
+    "retail_store_clerk": "https://images.unsplash.com/photo-1764795849885-e226e3cabe87?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTJ8MHwxfHNlYXJjaHw0fHxyZXRhaWwlMjBzdG9yZSUyMGNsZXJrfGVufDB8fHx8MTc5MDQ0MzQwNXww&ixlib=rb-4.1.0&q=85",
+    "store_counter": "https://images.unsplash.com/photo-1612012061228-78e9cb64cc16?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTJ8MHwxfHNlYXJjaHwzfHxyZXRhaWwlMjBzdG9yZSUyMGNsZXJrfGVufDB8fHx8MTc5MDQ0MzQwNXww&ixlib=rb-4.1.0&q=85",
+    "grocery_aisle": "https://images.unsplash.com/photo-1521566652839-697aa473761a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTJ8MHwxfHNlYXJjaHwxfHxyZXRhaWwlMjBzdG9yZSUyMGNsZXJrfGVufDB8fHx8MTc5MDQ0MzQwNXww&ixlib=rb-4.1.0&q=85",
+    "merchant_avatar": "https://images.unsplash.com/photo-1626063240213-c629ae4ef34c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTN8MHwxfHNlYXJjaHwxfHxpbmRpYW4lMjBidXNpbmVzc21hbiUyMHNtYXJ0cGhvbmV8ZW58MHx8fHwxNzkwNDQzNDA4fDA&ixlib=rb-4.1.0&q=85"
+  },
+  "instructions_to_main_agent": [
+    "Follow testid conventions strictly: all buttons, links, inputs, metrics, tables, and tabs MUST have data-testid (e.g., data-testid='pos-create-bill-button', data-testid='voice-assistant-mic-button', data-testid='udhaar-add-entry-button').",
+    "Use Lucide-react icons for clear, crisp UI navigation (ShoppingCart, Users, CreditCard, Sparkles, Mic, FileText, Settings, LayoutDashboard, TrendingUp, AlertTriangle, MessageSquare).",
+    "Ensure the floating mic button is visible on every view (via a global layout wrapper) and opens either a Voice Modal or triggers listening mode.",
+    "Implement Sonner toast notifications for actions like 'Bill Created Successfully', 'Udhaar Saved', 'WhatsApp Reminder Sent', 'Voice Command Processed'.",
+    "Avoid standard table over-crowding; use clean cards with clear status pills and monetary badges for mobile responsiveness.",
+    "Ensure dark mode toggle works smoothly across all 14 views.",
+    "Integrate mock AI voice recognition with realistic voice processing simulation and immediate UI response."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": {
+    "no_transparent_dropdowns": "DO NOT use transparent backgrounds for header, navigation dropdowns, popovers, or modals. Always set explicit high-opacity solid or glass background with borders.",
+    "spacing": "Maintain generous padding (p-4 to p-6 for cards, gap-4 to gap-6 for grids).",
+    "animations": "Add subtle motion for voice waves, hover states on cards, button tap responses, and tab transitions.",
+    "typography": "Never use Inter for primary titles; use Outfit or Plus Jakarta Sans with font-mono for numbers."
+  }
+}
