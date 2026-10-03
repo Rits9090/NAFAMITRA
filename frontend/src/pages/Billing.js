@@ -26,6 +26,7 @@ function useDebounced(value, delay = 300) {
 
 function CustomerPicker({ selected, onSelect, onClear, onCreateNew }) {
   const { t } = useI18n();
+  const navigate = useNavigate();
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
   const [open, setOpen] = useState(false);
@@ -111,11 +112,26 @@ function CustomerPicker({ selected, onSelect, onClear, onCreateNew }) {
                 })}</span>
               )}
             </p>
+            {/* Customer context at point of sale: history + value, this shop only */}
+            <p className="text-[11px] text-slate-500 font-medium" data-testid="customer-context">
+              {t('billing.ctxLine', {
+                bills: String(selected.purchase_count || 0),
+                total: fmt(selected.total_spend_paise || 0),
+                avg: fmt(selected.avg_bill_paise || 0),
+              })}
+            </p>
           </div>
         </div>
-        <button onClick={onClear} aria-label={t('common.close')} className="p-1.5 rounded-lg hover:bg-emerald-100 flex-shrink-0">
-          <X className="w-4 h-4 text-slate-400" />
-        </button>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button onClick={() => navigate(`/customers/${selected.id}`)}
+            className="text-[11px] font-bold text-emerald-700 bg-white border border-emerald-200 rounded-lg px-2 py-1.5 hover:bg-emerald-50"
+            data-testid="customer-history-link">
+            {t('billing.history')}
+          </button>
+          <button onClick={onClear} aria-label={t('common.close')} className="p-1.5 rounded-lg hover:bg-emerald-100">
+            <X className="w-4 h-4 text-slate-400" />
+          </button>
+        </div>
       </div>
     );
   }

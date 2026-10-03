@@ -6,7 +6,7 @@ import { useI18n } from '@/i18n';
 import { fmt, fmtCompact } from '@/lib/money';
 import {
   Plus, Users, CreditCard, Receipt, UserPlus, Package, IndianRupee,
-  ArrowRight, Wallet, Repeat2, ChevronRight, Activity,
+  ArrowRight, Wallet, Repeat2, ChevronRight, Activity, TrendingUp, Gift,
 } from 'lucide-react';
 import { DASHBOARD } from '@/constants/testIds';
 import TodaysActions from '@/components/TodaysActions';
@@ -102,6 +102,18 @@ export default function Dashboard() {
       testId: DASHBOARD.totalCustomers, accent: 'violet', icon: Users,
     },
     {
+      key: 'margin', label: t('dashboard.marginToday'),
+      value: fmt(stats?.metrics?.today?.margin_paise || 0),
+      sub: t('dashboard.marginSub'),
+      testId: 'today-margin', accent: 'teal', icon: TrendingUp,
+    },
+    {
+      key: 'dhanlabh', label: t('dashboard.dhanlabhToday'),
+      value: `${stats?.metrics?.today?.loyalty_earned || 0} 🪙`,
+      sub: t('dashboard.dhanlabhSub'),
+      testId: 'today-dhanlabh', accent: 'rose', icon: Gift,
+    },
+    {
       key: 'credit', label: t('dashboard.creditDue'),
       value: fmt(stats?.outstanding_paise || 0),
       sub: `${stats?.credit_accounts || 0} ${t('nav.customers')}`,
@@ -114,6 +126,8 @@ export default function Dashboard() {
     blue: 'bg-blue-50 text-blue-600',
     violet: 'bg-violet-50 text-violet-600',
     amber: 'bg-amber-50 text-amber-600',
+    teal: 'bg-teal-50 text-teal-600',
+    rose: 'bg-rose-50 text-rose-600',
   };
 
   return (

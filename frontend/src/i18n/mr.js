@@ -165,6 +165,10 @@ export default {
     avgBill: 'सरासरी बिल',
     lowStock: 'कमी स्टॉक',
     viewReports: 'अहवाल पहा',
+    marginToday: 'आजचा अंदाजित gross margin',
+    marginSub: 'विक्री − अंदाजित किंमत',
+    dhanlabhToday: 'आज दिलेला धनलाभ',
+    dhanlabhSub: 'आजच्या बिलांतील पॉइंट्स',
   },
 
   // billing
@@ -211,6 +215,8 @@ export default {
     marginInfo: 'अंदाजे किचा नफा: ₹{margin}',
     customerSince: 'ग्राहक म्हणून: {since}',
     lastPurchase: 'शेवटची खरेदी: {when}',
+    ctxLine: '{bills} बिले · एकूण {total} · सरासरी {avg}',
+    history: 'इतिहास',
     agoDays: '{n} दिवसांपूर्वी',
     agoToday: 'आज',
     dueAmount: 'बाकी: ₹{amount}',
@@ -342,6 +348,10 @@ export default {
 
   // customer portal app
   app: {
+    reorder: 'पुन्हा मागवा', reorderNote: 'गरजा नोंदवली जाते — ऑर्डर प्लेस होत नाही.',
+    reorderCreated: 'गरजा नोंदवली! (ऑर्डर नाही — दुकान तयार आहे असे दाखवले)',
+    reorderNoItems: 'या बिलातील वस्तू सापडल्या नाहीत.',
+    reorderTitle: 'पुन्हा मागणी — बिल {inv}',
     greeting: 'नमस्कार {name} 👋',
     dhanlabh: 'धनलाभ',
     dhanlabhPerShop: 'दुकानानुसार शिल्लक',
@@ -395,7 +405,7 @@ export default {
   // reports
   reports: {
     revenue: 'विक्री',
-    profit: 'अंदाजे नफा',
+    profit: 'अंदाजित gross margin',
     orders: 'बिले',
     avgOrder: 'सरासरी बिल',
     creditCollected: 'वसुली झालेली उधारी',

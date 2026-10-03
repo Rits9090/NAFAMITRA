@@ -5,10 +5,44 @@ import api, { errMsg } from '@/lib/api';
 import { useI18n } from '@/i18n';
 import { fmt } from '@/lib/money';
 import { ReceiptBody, shareReceipt } from '@/components/Receipt';
-import { Inbox, ChevronLeft, Share2, Link2, Gift, Wallet, ScrollText } from 'lucide-react';
+import { Inbox, ChevronLeft, Share2, Link2, Gift, Wallet, ScrollText, Repeat2, Loader } from 'lucide-react';
+
+/**
+ * Reorder → creates a REQUIREMENT (shopping list) from a past bill.
+ * Never fakes an order: copy says a requirement was posted, not purchased.
+ */
+export function useReorder() {
+  const { t } = useI18n();
+  const [busy, setBusy] = useState(null);
+  const reorder = async (bill) => {
+    setBusy(bill.id);
+    try {
+      let items = bill.items || [];
+      if (!items.length) {
+        const { data } = await api.get(`/customer/bills/${bill.id}`);
+        items = data.items || [];
+      }
+      const clean = items.filter((i) => i.name).map((i) => ({
+        name: i.name, qty: Math.max(1, i.quantity || 1), unit: i.unit || 'unit',
+      }));
+      if (!clean.length) { toast.error(t('app.reorderNoItems')); return; }
+      await api.post('/requirements', {
+        title: t('app.reorderTitle', { inv: bill.invoice_number || '' }),
+        items: clean,
+        source: 'reorder',
+        ...(bill.shop_id ? { shop_id: bill.shop_id } : {}),
+      });
+      toast.success(t('app.reorderCreated'));
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally { setBusy(null); }
+  };
+  return { reorder, busy };
+}
 
 export function CustomerBills() {
   const { t } = useI18n();
+  const { reorder, busy } = useReorder();
   const [bills, setBills] = useState(null);
   const [error, setError] = useState(null);
 
@@ -51,9 +85,18 @@ export function CustomerBills() {
                   {b.invoice_number} · {b.created_at ? new Date(b.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
                 </p>
               </div>
-              <div className="text-right flex-shrink-0">
-                <p className={`text-sm font-bold font-mono ${b.status === 'VOIDED' ? 'text-red-500 line-through' : 'text-slate-800'}`}>{fmt(b.total_paise || 0)}</p>
-                <p className="text-[11px] capitalize text-slate-400">{b.payment_mode}</p>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="text-right">
+                  <p className={`text-sm font-bold font-mono ${b.status === 'VOIDED' ? 'text-red-500 line-through' : 'text-slate-800'}`}>{fmt(b.total_paise || 0)}</p>
+                  <p className="text-[11px] capitalize text-slate-400">{b.payment_mode}</p>
+                </div>
+                <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); reorder(b); }}
+                  disabled={busy === b.id} title={t('app.reorder')}
+                  aria-label={t('app.reorder')}
+                  className="p-2 rounded-lg border border-emerald-200 text-emerald-600 bg-emerald-50 disabled:opacity-50"
+                  data-testid={`reorder-${b.id}`}>
+                  <Repeat2 className="w-4 h-4" />
+                </button>
               </div>
             </Link>
           </li>
@@ -69,6 +112,7 @@ export function CustomerBillDetail() {
   const navigate = useNavigate();
   const [bill, setBill] = useState(null);
   const [error, setError] = useState(null);
+  const { reorder, busy } = useReorder();
 
   useEffect(() => {
     api.get(`/customer/bills/${id}`)
@@ -104,6 +148,13 @@ export function CustomerBillDetail() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <ReceiptBody bill={bill} shopName={bill.shop?.name || bill.shop_name} />
       </div>
+      <button onClick={() => reorder(bill)} disabled={busy === bill.id}
+        data-testid="reorder-btn"
+        className="w-full py-3 rounded-xl bg-emerald-600 text-white text-sm font-semibold flex items-center justify-center gap-1.5 disabled:opacity-60">
+        {busy === bill.id ? <Loader className="w-4 h-4 animate-spin" /> : <Repeat2 className="w-4 h-4" />}
+        {t('app.reorder')}
+      </button>
+      <p className="text-[11px] text-slate-400 text-center -mt-2">{t('app.reorderNote')}</p>
       <button onClick={doShare} className="w-full py-3 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold flex items-center justify-center gap-1.5">
         <Share2 className="w-4 h-4" /> {t('receipt.share')}
       </button>

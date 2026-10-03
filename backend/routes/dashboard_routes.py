@@ -64,6 +64,11 @@ async def compute_metrics(shop_id: str, period: str = 'month') -> dict:
     bills = len(invoices) + len(legacy)
     avg_bill = sales_paise // bills if bills else 0
 
+    # Estimated gross margin = recorded sales − estimated cost (never "profit")
+    margin_paise = sum(i.get('total_paise', 0) - i.get('cost_paise', 0) for i in invoices)
+    margin_paise += sum((int(s.get('total_amount', 0) or 0)
+                         - int(s.get('total_cost', 0) or 0)) * 100 for s in legacy)
+
     credit_txs = await db.credit_transactions.find(
         {'shop_id': shop_id, 'created_at': {'$gte': _iso(start)}},
         {'_id': 0, 'type': 1, 'delta_paise': 1, 'amount_paise': 1}).to_list(5000)
@@ -83,6 +88,8 @@ async def compute_metrics(shop_id: str, period: str = 'month') -> dict:
         'period': period,
         'sales_paise': sales_paise,
         'sales_fmt': fmt(sales_paise),
+        'margin_paise': margin_paise,
+        'margin_fmt': fmt(margin_paise),
         'bills': bills,
         'avg_bill_paise': avg_bill,
         'avg_bill_fmt': fmt(avg_bill),
