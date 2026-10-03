@@ -68,6 +68,12 @@ export default function VoiceAssistant() {
       const formData = new FormData();
       formData.append('audio', blob, 'voice.webm');
       const { data } = await api.post(`/voice/transcribe`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      if (!data.transcription) {
+        // Honest fallback: nothing was heard/transcribed — do not process empty text.
+        setState(STATES.ERROR);
+        setResult({ error: data.notice || 'No transcription available. Type your command as a sample instead.' });
+        return;
+      }
       setTranscription(data.transcription);
       await processText(data.transcription);
     } catch {
@@ -91,6 +97,10 @@ export default function VoiceAssistant() {
     try {
       const { data } = await api.post(`/voice/execute`, { intent: intentData.intent, entities: intentData, session_id: intentData.session_id });
       setResult(data);
+      if (data.success === false) {
+        setState(STATES.ERROR);
+        return;
+      }
       setState(STATES.SUCCESS);
       toast.success(data.message || 'Done!');
       loadHistory();
@@ -109,7 +119,7 @@ export default function VoiceAssistant() {
 
   const INTENT_LABELS = {
     CREATE_SALE: 'Create Sale', ADD_UDHAAR: 'Add Udhaar', RECORD_PAYMENT: 'Record Payment',
-    CHECK_SALES: 'Check Today\'s Sales', CHECK_PROFIT: 'Check Profit',
+    CHECK_SALES: 'Check Today\'s Sales', CHECK_PROFIT: 'Check Est. Gross Margin',
     CHECK_OUTSTANDING: 'Check Outstanding', CHECK_STOCK: 'Check Low Stock',
     ADD_PRODUCT: 'Add Product', ADD_CUSTOMER: 'Add Customer', GENERAL_QUERY: 'General Query'
   };
@@ -187,9 +197,17 @@ export default function VoiceAssistant() {
                   <p className="text-sm text-indigo-700 italic">{intentData.response_message}</p>
                 </div>
               )}
+              {intentData.requires_clarification && intentData.clarification_question && (
+                <div className="flex items-start gap-2 bg-amber-50 rounded-xl p-3 border border-amber-200">
+                  <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5" />
+                  <p className="text-sm text-amber-800 font-medium">{intentData.clarification_question}</p>
+                </div>
+              )}
               <div className="flex gap-2">
                 <button onClick={reset} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50">Cancel</button>
-                <button onClick={handleConfirm} className="flex-1 py-3 rounded-xl bg-purple-600 text-white font-semibold text-sm hover:bg-purple-700">Confirm & Execute</button>
+                {!intentData.requires_clarification && (
+                  <button onClick={handleConfirm} className="flex-1 py-3 rounded-xl bg-purple-600 text-white font-semibold text-sm hover:bg-purple-700">Confirm & Execute</button>
+                )}
               </div>
             </div>
           )}
@@ -202,9 +220,9 @@ export default function VoiceAssistant() {
                 <p className="font-bold text-emerald-800">Success!</p>
               </div>
               <p className="text-sm text-emerald-700">{result.message}</p>
-              {result.data?.total_sales !== undefined && <p className="text-3xl font-bold font-mono text-emerald-700 mt-2">₹{result.data.total_sales?.toFixed(0)}</p>}
-              {result.data?.profit !== undefined && <p className="text-3xl font-bold font-mono text-emerald-700 mt-2">₹{result.data.profit?.toFixed(0)}</p>}
-              {result.data?.total_outstanding !== undefined && <p className="text-3xl font-bold font-mono text-red-600 mt-2">₹{result.data.total_outstanding?.toFixed(0)}</p>}
+              {result.data?.total_paise !== undefined && <p className="text-3xl font-bold font-mono text-emerald-700 mt-2">₹{Math.floor((result.data.total_paise || 0) / 100)}</p>}
+              {result.data?.estimated_gross_margin_paise !== undefined && <p className="text-3xl font-bold font-mono text-emerald-700 mt-2">₹{Math.floor((result.data.estimated_gross_margin_paise || 0) / 100)}</p>}
+              {result.data?.total_outstanding_paise !== undefined && <p className="text-3xl font-bold font-mono text-red-600 mt-2">₹{Math.floor((result.data.total_outstanding_paise || 0) / 100)}</p>}
               <button onClick={reset} className="w-full mt-3 py-2.5 rounded-xl border border-emerald-200 text-emerald-700 font-semibold text-sm hover:bg-emerald-100">Try Another Command</button>
             </div>
           )}

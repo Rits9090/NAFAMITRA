@@ -251,6 +251,54 @@ def main():
     r = requests.get('http://localhost:3000/api/admin/shop-health', timeout=10)
     check('admin 404 when unconfigured', r.status_code == 404, r.status_code)
 
+    print('== 19. Voice + AI honesty (no fabricated data) ==')
+    bare = requests.Session()
+    r = bare.post(BASE + '/voice/understand', json={'transcription': 'hello'}, timeout=15)
+    check('voice requires auth', r.status_code == 401, r.status_code)
+
+    import io as _io
+    r = m.req('POST', '/voice/transcribe',
+              files={'audio': ('t.webm', _io.BytesIO(b'\x00\x01\x02'), 'audio/webm')})
+    check('transcribe 200', r.status_code == 200, r.text)
+    if r.status_code == 200:
+        body = r.json()
+        check('no fabricated transcription', body.get('transcription') in ('', None), body)
+        check('honest notice when STT unavailable', bool(body.get('notice')) or body.get('demo_mode') is False, body)
+
+    r = m.req('POST', '/voice/understand',
+              json={'transcription': 'Ramesh ka 500 rupaye ka bill banao'})
+    check('understand 200', r.status_code == 200, r.text)
+    if r.status_code == 200:
+        body = r.json()
+        check('write intent requires clarification', body.get('requires_clarification') is True, body)
+        check('no fabricated customer name', 'customer_name' not in body, body)
+        check('no fabricated amount', 'amount' not in body, body)
+
+    r = m.req('POST', '/voice/understand', json={'transcription': 'Aaj ki sales kitni hai'})
+    check('read intent classified', r.status_code == 200 and r.json().get('intent') == 'CHECK_SALES', r.text)
+
+    r = m.req('POST', '/voice/execute',
+              json={'intent': 'CREATE_SALE', 'entities': {'intent': 'CREATE_SALE'}})
+    check('execute write intent refuses honestly', r.status_code == 200
+          and r.json().get('success') is False and 'Nothing was executed' in r.json().get('message', ''), r.text)
+
+    r = m.req('POST', '/voice/execute',
+              json={'intent': 'CHECK_SALES', 'entities': {'intent': 'CHECK_SALES'}})
+    body = r.json() if r.status_code == 200 else {}
+    check('execute CHECK_SALES uses recorded data', r.status_code == 200
+          and body.get('success') is True and 'recorded sales' in body.get('message', ''), r.text)
+
+    r = m.req('POST', '/voice/execute',
+              json={'intent': 'WIPE_EVERYTHING', 'entities': {}})
+    check('unknown intent not executed', r.status_code == 200 and r.json().get('success') is False, r.text)
+
+    r = m.req('POST', '/assistant/chat', json={'message': 'How are my sales?'})
+    check('assistant chat 200', r.status_code == 200, r.text)
+    if r.status_code == 200:
+        txt = r.text
+        check('assistant never fabricates analysis', 'looking good' not in txt and 'margins look healthy' not in txt, txt[:300])
+        check('assistant honest when AI unconfigured', ('not configured' in txt) or ('data:' in txt), txt[:300])
+
     print(f'\n{"=" * 50}\nPASSED: {len(PASS)}   FAILED: {len(FAIL)}')
     for name, extra in FAIL:
         print(f'  FAIL {name}: {extra}')
