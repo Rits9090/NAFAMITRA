@@ -7,7 +7,18 @@ const DICTS = { mr, en, hi };
 const STORAGE_KEY = 'nafamitra_lang';
 const DEFAULT_LANG = 'mr';
 
-const I18nContext = createContext({});
+const I18nContext = createContext({
+  // Safe default: if the provider is missing, render the key instead of
+  // crashing with "t is not a function".
+  t: (key) => key,
+  lang: DEFAULT_LANG,
+  setLang: () => {},
+  languages: [
+    { code: 'mr', label: 'मराठी' },
+    { code: 'en', label: 'English' },
+    { code: 'hi', label: 'हिंदी' },
+  ],
+});
 
 function resolve(dict, key, vars) {
   const parts = key.split('.');

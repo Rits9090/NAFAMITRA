@@ -3,6 +3,7 @@ import '@/App.css';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { I18nProvider } from '@/i18n';
 
 const Login = lazy(() => import('@/pages/Login'));
 const Onboarding = lazy(() => import('@/pages/Onboarding'));
@@ -137,10 +138,12 @@ function App() {
   return (
     <div className="App">
       <AuthProvider>
-        <BrowserRouter>
-          <AppRoutes />
-          <Toaster position="top-right" richColors expand={false} />
-        </BrowserRouter>
+        <I18nProvider>
+          <BrowserRouter>
+            <AppRoutes />
+            <Toaster position="top-right" richColors expand={false} />
+          </BrowserRouter>
+        </I18nProvider>
       </AuthProvider>
     </div>
   );
