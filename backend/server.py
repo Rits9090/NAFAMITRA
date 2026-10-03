@@ -30,6 +30,10 @@ from routes.voice_routes import router as voice_router
 from routes.assistant_routes import router as assistant_router
 from routes.reports_routes import router as reports_router
 from routes.analytics_routes import router as analytics_router, admin_router as admin_analytics_router
+from routes.requirements_routes import router as requirements_router
+from routes.favorites_routes import router as favorites_router
+from routes.notify_routes import router as notify_router
+from routes.retailer_actions import router as actions_router
 
 api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
 api_router.include_router(dashboard_router, prefix="/dashboard", tags=["dashboard"])
@@ -43,6 +47,10 @@ api_router.include_router(loyalty_router, prefix="/loyalty", tags=["loyalty"])
 api_router.include_router(voice_router, prefix="/voice", tags=["voice"])
 api_router.include_router(assistant_router, prefix="/assistant", tags=["assistant"])
 api_router.include_router(reports_router, prefix="/reports", tags=["reports"])
+api_router.include_router(requirements_router, prefix="/requirements", tags=["requirements"])
+api_router.include_router(favorites_router, prefix="/favorites", tags=["favorites"])
+api_router.include_router(notify_router, prefix="/notifications", tags=["notifications"])
+api_router.include_router(actions_router, prefix="/retailer", tags=["retailer"])
 api_router.include_router(analytics_router)
 api_router.include_router(admin_analytics_router)
 

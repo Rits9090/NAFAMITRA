@@ -299,6 +299,83 @@ def main():
         check('assistant never fabricates analysis', 'looking good' not in txt and 'margins look healthy' not in txt, txt[:300])
         check('assistant honest when AI unconfigured', ('not configured' in txt) or ('data:' in txt), txt[:300])
 
+    print('== 20. Requirements / favorites / notifications / actions (P1) ==')
+    # customer creates a requirement (no target shop → visible to linked shops only)
+    r = m.req('POST', '/requirements', json={
+        'title': 'Aashirvaad 5kg atta', 'items': [{'name': 'atta 5kg', 'qty': 2, 'unit': 'pack'}],
+        'budget_paise': 50000, 'source': 'manual'})
+    check('create requirement', r.status_code == 200 and r.json().get('requirement', {}).get('status') == 'open', r.text)
+    req_id = r.json().get('requirement', {}).get('id') if r.status_code == 200 else None
+
+    r = m.req('GET', '/requirements')
+    check('customer sees own requirements', r.status_code == 200 and any(
+        x.get('id') == req_id for x in r.json().get('requirements', [])), r.text)
+
+    r = m.req('GET', '/requirements/shop/list')
+    check('linked shop sees requirement', r.status_code == 200 and any(
+        x.get('id') == req_id for x in r.json().get('requirements', [])), r.text)
+
+    r = m.req('PATCH', f'/requirements/shop/{req_id}', json={'status': 'matched', 'retailer_notes': 'In stock'})
+    check('retailer marks matched', r.status_code == 200 and r.json().get('requirement', {}).get('status') == 'matched', r.text)
+
+    r = m.req('GET', '/notifications?category=requirement')
+    check('customer notified of match', r.status_code == 200 and any(
+        n.get('title_key') == 'notif.requirementMatched' for n in r.json().get('notifications', [])), r.text)
+
+    r = m.req('GET', '/notifications/prefs')
+    check('marketing consent default OFF', r.status_code == 200 and r.json().get('marketing_consent') is False, r.text)
+    r = m.req('PUT', '/notifications/prefs', json={'marketing_consent': True, 'transaction': False})
+    check('update prefs', r.status_code == 200 and r.json().get('marketing_consent') is True
+          and r.json().get('prefs', {}).get('transaction') is False, r.text)
+
+    # favorites
+    r = m.req('POST', '/favorites', json={'shop_id': m.shop_id})
+    check('favorite add', r.status_code == 200 and r.json().get('favorite') is True, r.text)
+    r = m.req('GET', '/favorites')
+    check('favorite listed', r.status_code == 200 and any(
+        f.get('shop_id') == m.shop_id for f in r.json().get('favorites', [])), r.text)
+    r = m.req('DELETE', f'/favorites/{m.shop_id}')
+    check('favorite remove', r.status_code == 200 and r.json().get('favorite') is False, r.text)
+
+    # Today's Actions — real data, i18n reason keys
+    r = m.req('GET', '/retailer/actions')
+    check('retailer actions 200', r.status_code == 200 and 'actions' in r.json(), r.text)
+    if r.status_code == 200:
+        acts = r.json()['actions']
+        check('actions use i18n reason keys', all(a.get('reason_key', '').startswith('action.') for a in acts), acts[:2])
+
+    # requirement segment visible to retailer
+    r = m.req('GET', '/customers?segment=requirement&limit=50')
+    check('segment=requirement works', r.status_code == 200, r.text)
+
+    # isolation: a different shop must NOT see this linked-only requirement
+    m2 = Session()
+    phone2 = '8' + str(int(time.time() * 10) % 1000000000).zfill(9)
+    r = m2.req('POST', '/auth/request-otp', json={'phone': phone2})
+    otp2 = r.json().get('dev_otp') if r.status_code == 200 else None
+    r = m2.req('POST', '/auth/verify-otp', json={'phone': phone2, 'code': otp2})
+    if r.status_code == 200:
+        m2.token = r.json()['token']
+    r = m2.req('POST', '/auth/onboard/shop', json={'owner_name': 'Other Owner', 'shop_name': 'Other Shop',
+                                                 'category': 'kirana', 'location': 'Pune'})
+    if r.status_code == 200:
+        m2.shop_id = r.json()['shop']['id']
+    r = m2.req('GET', '/requirements/shop/list')
+    check('other shop cannot see requirement', r.status_code == 200 and all(
+        x.get('id') != req_id for x in r.json().get('requirements', [])), r.text)
+    r = m2.req('GET', '/retailer/actions')
+    check('other shop actions isolated', r.status_code == 200, r.text)
+
+    # unauthorized access to new surfaces
+    r = bare.get(BASE + '/requirements', timeout=10)
+    check('requirements needs auth', r.status_code == 401, r.status_code)
+    r = bare.get(BASE + '/retailer/actions', timeout=10)
+    check('actions need auth', r.status_code == 401, r.status_code)
+    r = bare.get(BASE + '/favorites', timeout=10)
+    check('favorites need auth', r.status_code == 401, r.status_code)
+    r = bare.get(BASE + '/notifications', timeout=10)
+    check('notifications need auth', r.status_code == 401, r.status_code)
+
     print(f'\n{"=" * 50}\nPASSED: {len(PASS)}   FAILED: {len(FAIL)}')
     for name, extra in FAIL:
         print(f'  FAIL {name}: {extra}')

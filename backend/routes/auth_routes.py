@@ -244,7 +244,7 @@ async def onboard_shop(req: ShopOnboard, payload: dict = Depends(get_current_use
 
 @router.post('/onboard/customer')
 async def onboard_customer(req: CustomerOnboard, payload: dict = Depends(get_current_user)):
-    from identity import ensure_global_customer
+    from identity import ensure_global_customer, ensure_shop_link
     user_id = payload['user_id']
     person = await db.users.find_one({'id': user_id}, {'_id': 0})
     if not person:
@@ -255,6 +255,13 @@ async def onboard_customer(req: CustomerOnboard, payload: dict = Depends(get_cur
     customer = await ensure_global_customer(
         name=req.name.strip(), phone=person.get('phone_normalized') or person.get('phone'),
         user_id=user_id)
+    # The owner is also a customer of their own shop(s): create the link so
+    # CRM surfaces (segments, requirements visibility, billing) see them.
+    for m in await db.memberships.find({'user_id': user_id},
+                                       {'_id': 0, 'shop_id': 1}).to_list(10):
+        await ensure_shop_link(m['shop_id'], customer,
+                               normalized_phone=person.get('phone_normalized'),
+                               source='self')
     return {'customer': {'customer_id': customer['id'], 'nm_id': customer['nm_id'],
                          'name': customer['name']},
             'identities': await identity_resolution(

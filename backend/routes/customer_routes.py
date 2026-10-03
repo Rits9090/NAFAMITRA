@@ -22,7 +22,7 @@ from phones import normalize_phone
 
 router = APIRouter()
 
-SEGMENTS = ('all', 'new', 'repeat', 'high_value', 'credit_due', 'inactive')
+SEGMENTS = ('all', 'new', 'repeat', 'high_value', 'credit_due', 'inactive', 'requirement')
 
 
 def _now() -> str:
@@ -144,7 +144,18 @@ async def list_customers(
         row['is_inactive'] = (not row['last_purchase_at'] or row['last_purchase_at'] < inactive_cutoff)
         rows.append(row)
 
+    req_cids: set = set()
+    if segment == 'requirement':
+        link_ids = {l['customer_id'] for l in links}
+        reqs = await db.requirements.find(
+            {'status': 'open'}, {'_id': 0, 'customer_id': 1, 'shop_id': 1}).to_list(1000)
+        req_cids = {r['customer_id'] for r in reqs
+                    if r.get('shop_id') == shop_id
+                    or (r.get('shop_id') is None and r.get('customer_id') in link_ids)}
+
     def matches(r):
+        if segment == 'requirement':
+            return r.get('id') in req_cids
         if segment == 'new':
             return r['is_new']
         if segment == 'repeat':

@@ -94,6 +94,14 @@ async def ensure_indexes() -> None:
     await db.magic_links.create_index('token_hash', unique=True)
     await db.magic_links.create_index('expires_at')
 
+    # --- requirements / notifications / favorites --------------------------
+    await db.requirements.create_index([('customer_id', 1), ('created_at', -1)])
+    await db.requirements.create_index([('shop_id', 1), ('status', 1)])
+    await db.customer_notifications.create_index([('customer_id', 1), ('created_at', -1)])
+    await db.customer_notifications.create_index([('customer_id', 1), ('read_at', 1)])
+    await db.notification_prefs.create_index('customer_id', unique=True)
+    await db.favorites.create_index([('customer_id', 1), ('shop_id', 1)], unique=True)
+
     # --- legacy collections ------------------------------------------------
     await db.sales.create_index([('business_id', 1), ('created_at', -1)])
     await db.products.create_index([('business_id', 1), ('name', 1)])

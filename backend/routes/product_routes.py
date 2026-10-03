@@ -23,6 +23,8 @@ class ProductCreate(BaseModel):
     unit: str = 'piece'
     image_url: Optional[str] = None
     is_active: bool = True
+    supplier_id: Optional[str] = None   # P1: link product to a supplier
+    expiry_date: Optional[str] = None   # P1: ISO date, optional (FMCG etc.)
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
@@ -38,6 +40,8 @@ class ProductUpdate(BaseModel):
     description: Optional[str] = None
     unit: Optional[str] = None
     is_active: Optional[bool] = None
+    supplier_id: Optional[str] = None
+    expiry_date: Optional[str] = None
 
 class StockUpdate(BaseModel):
     quantity: int
@@ -123,6 +127,8 @@ async def create_product(req: ProductCreate, user: dict = Depends(require_busine
         'unit': req.unit,
         'image_url': req.image_url,
         'is_active': req.is_active,
+        'supplier_id': req.supplier_id,
+        'expiry_date': req.expiry_date,
         'created_at': now
     }
     await db.products.insert_one(doc)

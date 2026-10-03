@@ -86,6 +86,13 @@ async def post_bill(req: CreateBill, user: dict = Depends(require_business)):
                          'payment_mode': invoice.get('payment_mode'),
                          'customer_id': invoice.get('customer_id'),
                      })
+    if invoice.get('customer_id'):
+        from routes.notify_routes import notify_customer
+        await notify_customer(
+            invoice['customer_id'], user['shop_id'], 'transaction',
+            title_key='notif.billCreated',
+            params={'amount': str(invoice['total_paise'] // 100),
+                    'invoice': invoice['invoice_number']})
     return invoice
 
 
