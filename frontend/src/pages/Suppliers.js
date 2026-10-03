@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Truck, Plus, X, ChevronRight, Package, IndianRupee } from 'lucide-react';
 import api, { errMsg } from '@/lib/api';
+import { useI18n } from '@/i18n';
 
 
 export default function Suppliers() {
+  const { t } = useI18n();
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -35,16 +37,16 @@ export default function Suppliers() {
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    if (!form.name) return toast.error('Supplier name is required');
+    if (!form.name) return toast.error(t('sup.nameRequired'));
     setSubmitting(true);
     try {
       await api.post(`/suppliers`, form);
-      toast.success('Supplier added!');
+      toast.success(t('sup.added'));
       setShowAdd(false);
       setForm({ name: '', phone: '', email: '', address: '', gst_number: '' });
       loadSuppliers();
     } catch (err) {
-      toast.error(errMsg(err, 'Failed'));
+      toast.error(errMsg(err, t('sup.saveFailed')));
     } finally {
       setSubmitting(false);
     }
@@ -56,12 +58,12 @@ export default function Suppliers() {
     <div className="space-y-4 animate-fadeInUp">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-800" style={{fontFamily:'Outfit,sans-serif'}}>Suppliers</h1>
-          <p className="text-slate-500 text-sm">{suppliers.length} suppliers</p>
+          <h1 className="text-2xl font-extrabold text-slate-800" style={{fontFamily:'Outfit,sans-serif'}}>{t('nav.suppliers')}</h1>
+          <p className="text-slate-500 text-sm">{t('sup.count', { n: String(suppliers.length) })}</p>
         </div>
         <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-600 shadow-sm">
           <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Add Supplier</span>
+          <span className="hidden sm:inline">{t('sup.add')}</span>
         </button>
       </div>
 
@@ -77,10 +79,10 @@ export default function Suppliers() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-slate-800 text-sm">{s.name}</p>
-                  <p className="text-xs text-slate-400">{s.phone || 'No phone'} {s.gst_number ? `· GST: ${s.gst_number}` : ''}</p>
+                  <p className="text-xs text-slate-400">{s.phone || t('sup.noPhone')} {s.gst_number ? `· GST: ${s.gst_number}` : ''}</p>
                   <div className="flex gap-3 mt-1.5 text-xs">
-                    <span className="text-blue-600 font-semibold">Purchased: {fmt(s.total_purchases)}</span>
-                    {s.outstanding > 0 && <span className="text-red-600 font-semibold">Owed: {fmt(s.outstanding)}</span>}
+                    <span className="text-blue-600 font-semibold">{t('sup.purchased', { amount: fmt(s.total_purchases) })}</span>
+                    {s.outstanding > 0 && <span className="text-red-600 font-semibold">{t('sup.owed', { amount: fmt(s.outstanding) })}</span>}
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-slate-300" />
@@ -104,29 +106,29 @@ export default function Suppliers() {
             <div className="p-4 overflow-y-auto space-y-4">
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { label: 'Total Bought', value: fmt(selected.total_purchases), color: 'blue' },
-                  { label: 'Total Paid', value: fmt(selected.total_paid), color: 'emerald' },
-                  { label: 'Outstanding', value: fmt(selected.outstanding), color: 'red' },
+                  { id: 'bought', labelKey: 'sup.totalBought', value: fmt(selected.total_purchases), color: 'blue' },
+                  { id: 'paid', labelKey: 'sup.totalPaid', value: fmt(selected.total_paid), color: 'emerald' },
+                  { id: 'out', labelKey: 'sup.outstanding', value: fmt(selected.outstanding), color: 'red' },
                 ].map(s => (
-                  <div key={s.label} className={`bg-${s.color}-50 rounded-xl p-3 text-center`}>
+                  <div key={s.id} className={`bg-${s.color}-50 rounded-xl p-3 text-center`}>
                     <p className={`text-base font-bold font-mono text-${s.color}-600`}>{s.value}</p>
-                    <p className={`text-xs text-${s.color}-500 font-semibold`}>{s.label}</p>
+                    <p className={`text-xs text-${s.color}-500 font-semibold`}>{t(s.labelKey)}</p>
                   </div>
                 ))}
               </div>
               {supplierDetail?.purchases?.length > 0 && (
                 <div>
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Recent Purchases</p>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{t('sup.recentPurchases')}</p>
                   <div className="space-y-2">
                     {supplierDetail.purchases.map(p => (
                       <div key={p.id} className="flex items-center justify-between bg-slate-50 rounded-xl p-3">
                         <div>
-                          <p className="text-sm font-semibold text-slate-700">{p.items?.length} items</p>
+                          <p className="text-sm font-semibold text-slate-700">{t('sup.items', { n: String(p.items?.length || 0) })}</p>
                           <p className="text-xs text-slate-400">{new Date(p.created_at).toLocaleDateString('en-IN')} · {p.payment_mode}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-sm font-bold font-mono text-slate-700">{fmt(p.total_amount)}</p>
-                          {p.outstanding > 0 && <p className="text-xs text-red-500">Due: {fmt(p.outstanding)}</p>}
+                          {p.outstanding > 0 && <p className="text-xs text-red-500">{t('sup.due', { amount: fmt(p.outstanding) })}</p>}
                         </div>
                       </div>
                     ))}
@@ -143,25 +145,25 @@ export default function Suppliers() {
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl animate-fadeInUp">
             <div className="flex items-center justify-between p-4 border-b border-slate-100">
-              <h3 className="font-bold text-slate-800">Add Supplier</h3>
+              <h3 className="font-bold text-slate-800">{t('sup.addTitle')}</h3>
               <button onClick={() => setShowAdd(false)}><X className="w-4 h-4 text-slate-400" /></button>
             </div>
             <form onSubmit={handleAdd} className="p-4 space-y-3">
               {[
-                { key: 'name', label: 'Supplier Name *', placeholder: 'e.g. Brijlal & Sons', required: true },
-                { key: 'phone', label: 'Phone', placeholder: '10-digit number' },
-                { key: 'address', label: 'Address', placeholder: 'Business address' },
-                { key: 'gst_number', label: 'GST Number', placeholder: 'GSTIN (optional)' },
-              ].map(({ key, label, placeholder, required }) => (
+                { key: 'name', labelKey: 'sup.fName', phKey: 'sup.phName', required: true },
+                { key: 'phone', labelKey: 'common.phone', phKey: 'sup.phPhone' },
+                { key: 'address', labelKey: 'sup.fAddress', phKey: 'sup.phAddress' },
+                { key: 'gst_number', labelKey: 'sup.fGst', phKey: 'sup.phGst' },
+              ].map(({ key, labelKey, phKey, required }) => (
                 <div key={key}>
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</label>
-                  <input value={form[key]} onChange={e => setForm(p => ({...p, [key]: e.target.value}))} placeholder={placeholder} required={required} className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/30" />
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t(labelKey)}</label>
+                  <input value={form[key]} onChange={e => setForm(p => ({...p, [key]: e.target.value}))} placeholder={t(phKey)} required={required} className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/30" />
                 </div>
               ))}
               <div className="flex gap-2">
-                <button type="button" onClick={() => setShowAdd(false)} className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-semibold">Cancel</button>
+                <button type="button" onClick={() => setShowAdd(false)} className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-semibold">{t('common.cancel')}</button>
                 <button type="submit" disabled={submitting} className="flex-1 py-3 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 disabled:opacity-60">
-                  {submitting ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto" /> : 'Add Supplier'}
+                  {submitting ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto" /> : t('sup.add')}
                 </button>
               </div>
             </form>

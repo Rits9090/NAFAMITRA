@@ -134,7 +134,7 @@ async def understand_command(req: UnderstandRequest, user: dict = Depends(requir
                            "response_message": ai_note,
                            "requires_clarification": True,
                            "clarification_question": "Voice AI for bill creation is not configured. Open Billing to create this bill."}
-        elif 'payment' in t or 'jama' in t or 'भरपाई' in t or 'येवणी' in t:
+        elif 'payment' in t or 'jama' in t or 'जमा' in t or 'भरपाई' in t or 'येवणी' in t:
             intent_data = {"intent": "RECORD_PAYMENT", "confidence": 0.5,
                            "response_message": ai_note,
                            "requires_clarification": True,

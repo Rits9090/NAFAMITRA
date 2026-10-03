@@ -3,17 +3,19 @@ import { toast } from 'sonner';
 import { Package, Plus, Search, Edit2, Trash2, X, AlertTriangle, TrendingUp } from 'lucide-react';
 import { PRODUCTS } from '@/constants/testIds';
 import api, { errMsg } from '@/lib/api';
+import { useI18n } from '@/i18n';
 
 
 const STOCK_STATUS = {
-  in_stock: { label: 'In Stock', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
-  low_stock: { label: 'Low Stock', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
-  out_of_stock: { label: 'Out of Stock', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
+  in_stock: { labelKey: 'prod.inStock', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+  low_stock: { labelKey: 'prod.lowStock', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
+  out_of_stock: { labelKey: 'prod.outStock', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
 };
 
 const EMPTY_FORM = { name: '', category: '', selling_price: '', purchase_price: '', stock_quantity: '', low_stock_threshold: 5, sku: '', brand: '', unit: 'piece' };
 
 export default function Products() {
+  const { t } = useI18n();
   const [products, setProducts] = useState([]);
   const [total, setTotal] = useState(0);
   const [categories, setCategories] = useState([]);
@@ -58,15 +60,15 @@ export default function Products() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.name || !form.selling_price || !form.purchase_price) return toast.error('Name and prices are required');
+    if (!form.name || !form.selling_price || !form.purchase_price) return toast.error(t('prod.nameRequired'));
     setSubmitting(true);
     try {
       if (editProduct) {
         await api.put(`/products/${editProduct.id}`, form);
-        toast.success('Product updated!');
+        toast.success(t('prod.updated'));
       } else {
         await api.post(`/products`, form);
-        toast.success(`${form.name} added!`);
+        toast.success(t('prod.added', { name: form.name }));
       }
       setShowModal(false);
       setForm(EMPTY_FORM);
@@ -74,16 +76,16 @@ export default function Products() {
       loadProducts();
       loadCategories();
     } catch (err) {
-      toast.error(errMsg(err, 'Failed to save product'));
+      toast.error(errMsg(err, t('prod.saveFailed')));
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDelete = async (p) => {
-    if (!window.confirm(`Delete "${p.name}"?`)) return;
+    if (!window.confirm(t('prod.confirmDelete', { name: p.name }))) return;
     await api.delete(`/products/${p.id}`);
-    toast.success('Product deleted');
+    toast.success(t('prod.deleted'));
     loadProducts();
   };
 
@@ -97,12 +99,12 @@ export default function Products() {
     <div data-testid={PRODUCTS.page} className="space-y-4 animate-fadeInUp">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-800" style={{fontFamily:'Outfit,sans-serif'}}>Products</h1>
-          <p className="text-slate-500 text-sm">{total} products in catalogue</p>
+          <h1 className="text-2xl font-extrabold text-slate-800" style={{fontFamily:'Outfit,sans-serif'}}>{t('nav.products')}</h1>
+          <p className="text-slate-500 text-sm">{t('prod.catalogue', { n: String(total) })}</p>
         </div>
         <button data-testid={PRODUCTS.addBtn} onClick={() => { setEditProduct(null); setForm(EMPTY_FORM); setShowModal(true); }} className="flex items-center gap-2 bg-emerald-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-emerald-600 transition-colors shadow-sm">
           <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Add Product</span>
+          <span className="hidden sm:inline">{t('prod.add')}</span>
         </button>
       </div>
 
@@ -110,10 +112,10 @@ export default function Products() {
       <div className="flex gap-2 flex-wrap">
         <div className="relative flex-1 min-w-48">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input data-testid={PRODUCTS.searchInput} value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..." className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
+          <input data-testid={PRODUCTS.searchInput} value={search} onChange={e => setSearch(e.target.value)} placeholder={t('prod.phSearch')} className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
         </div>
         <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
-          <option value="">All Categories</option>
+          <option value="">{t('prod.allCategories')}</option>
           {categories.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
@@ -146,8 +148,8 @@ export default function Products() {
                   <span className="text-xs text-emerald-600 font-semibold ml-auto"><TrendingUp className="w-3 h-3 inline mr-0.5" />{margin}%</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${sc.bg} ${sc.text} border ${sc.border}`}>{sc.label}</span>
-                  <span className="text-xs text-slate-500 font-semibold">Stock: {p.stock_quantity} {p.unit}s</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${sc.bg} ${sc.text} border ${sc.border}`}>{t(sc.labelKey)}</span>
+                  <span className="text-xs text-slate-500 font-semibold">{t('prod.stockLine', { n: String(p.stock_quantity), unit: p.unit })}</span>
                 </div>
               </div>
             );
@@ -160,50 +162,50 @@ export default function Products() {
         <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-fadeInUp max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
-              <h3 className="font-bold text-slate-800" style={{fontFamily:'Outfit,sans-serif'}}>{editProduct ? 'Edit Product' : 'Add New Product'}</h3>
+              <h3 className="font-bold text-slate-800" style={{fontFamily:'Outfit,sans-serif'}}>{editProduct ? t('prod.edit') : t('prod.addNew')}</h3>
               <button onClick={() => setShowModal(false)} className="p-1.5 rounded-lg hover:bg-slate-100"><X className="w-4 h-4 text-slate-400" /></button>
             </div>
             <form onSubmit={handleSubmit} className="p-5 space-y-3">
               <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Product Name *</label>
-                <input value={form.name} onChange={e => setForm(p => ({...p, name: e.target.value}))} placeholder="e.g. Aashirvaad Atta 5kg" required className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('prod.fName')}</label>
+                <input value={form.name} onChange={e => setForm(p => ({...p, name: e.target.value}))} placeholder={t('prod.phName')} required className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Selling Price *</label>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('prod.fSell')}</label>
                   <input data-testid={PRODUCTS.priceInput} type="number" value={form.selling_price} onChange={e => setForm(p => ({...p, selling_price: e.target.value}))} placeholder="₹0" required min="0" className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Purchase Price *</label>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('prod.fBuy')}</label>
                   <input type="number" value={form.purchase_price} onChange={e => setForm(p => ({...p, purchase_price: e.target.value}))} placeholder="₹0" required min="0" className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Category *</label>
-                  <input value={form.category} onChange={e => setForm(p => ({...p, category: e.target.value}))} placeholder="e.g. Atta & Rice" className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('prod.fCat')}</label>
+                  <input value={form.category} onChange={e => setForm(p => ({...p, category: e.target.value}))} placeholder={t('prod.phCat')} className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Stock Qty</label>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('prod.fStock')}</label>
                   <input type="number" value={form.stock_quantity} onChange={e => setForm(p => ({...p, stock_quantity: e.target.value}))} min="0" className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">SKU</label>
-                  <input value={form.sku} onChange={e => setForm(p => ({...p, sku: e.target.value}))} placeholder="Auto-generated" className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
+                  <input value={form.sku} onChange={e => setForm(p => ({...p, sku: e.target.value}))} placeholder={t('prod.phSku')} className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Unit</label>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('prod.fUnit')}</label>
                   <select value={form.unit} onChange={e => setForm(p => ({...p, unit: e.target.value}))} className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 bg-white">
                     {['piece','kg','litre','packet','box','bottle','jar'].map(u => <option key={u} value={u}>{u}</option>)}
                   </select>
                 </div>
               </div>
               <div className="flex gap-2 pt-1">
-                <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50">Cancel</button>
+                <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50">{t('common.cancel')}</button>
                 <button type="submit" disabled={submitting} className="flex-1 py-3 rounded-xl bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 disabled:opacity-60 flex items-center justify-center">
-                  {submitting ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : (editProduct ? 'Save Changes' : 'Add Product')}
+                  {submitting ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : (editProduct ? t('prod.saveChanges') : t('prod.add'))}
                 </button>
               </div>
             </form>
