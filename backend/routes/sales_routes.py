@@ -1,184 +1,171 @@
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
-from typing import Optional, List
-from datetime import datetime, timezone
-import uuid
+"""Billing routes: create (quick / itemised), list, receipt, void.
+
+Kept under /api/sales for compatibility with the existing frontend contract,
+served from the new invoice ledger.
+"""
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel, Field
+
+from audit import log_action
+from auth import require_business, require_role
+from billing import create_invoice, void_invoice
 from database import db
-from auth import require_business
+from errors import AppError, NotFound
+from money import fmt, to_paise
 
 router = APIRouter()
 
-class SaleItem(BaseModel):
-    product_id: str
-    quantity: int
-    discount: float = 0.0
 
-class CreateSaleRequest(BaseModel):
+class ItemIn(BaseModel):
+    product_id: Optional[str] = None
+    name: Optional[str] = None
+    quantity: int = 1
+    unit_price: Optional[float] = None
+    discount: Optional[float] = 0
+
+
+class CreateBill(BaseModel):
     customer_id: Optional[str] = None
+    customer_phone: Optional[str] = None
     customer_name: Optional[str] = None
-    items: List[SaleItem]
-    discount: float = 0.0
-    tax: float = 0.0
-    payment_mode: str = 'cash'
+    mode: Optional[str] = None  # 'quick' | 'items'
+    amount: Optional[float] = None
+    items: Optional[List[ItemIn]] = None
+    discount: Optional[float] = 0
+    payment_mode: Optional[str] = 'cash'
     paid_amount: Optional[float] = None
+    loyalty_redeem_points: Optional[int] = 0
     notes: Optional[str] = None
-    loyalty_points_redeemed: float = 0.0
+    idempotency_key: Optional[str] = None
 
-async def get_next_invoice_number(business_id: str) -> str:
-    now = datetime.now(timezone.utc)
-    prefix = f"INV-{now.strftime('%y%m')}"
-    count = await db.sales.count_documents({'business_id': business_id, 'invoice_number': {'$regex': f'^{prefix}'}})
-    return f"{prefix}-{(count + 1):03d}"
-
-def get_membership_level(points: float) -> str:
-    if points >= 5000: return 'vip'
-    if points >= 2000: return 'gold'
-    if points >= 500: return 'silver'
-    return 'bronze'
 
 @router.get("")
-async def list_sales(page: int = 1, limit: int = 20, user: dict = Depends(require_business)):
-    bid = user['business_id']
-    total = await db.sales.count_documents({'business_id': bid})
+async def list_bills(page: int = 1, limit: int = Query(20, le=100),
+                     customer_id: Optional[str] = None,
+                     status: Optional[str] = None,
+                     user: dict = Depends(require_business)):
+    shop_id = user['shop_id']
+    query: dict = {'shop_id': shop_id}
+    if customer_id:
+        query['customer_id'] = customer_id
+    if status in ('ACTIVE', 'VOIDED'):
+        query['status'] = status
+    total = await db.invoices.count_documents(query)
     skip = (page - 1) * limit
-    sales = await db.sales.find({'business_id': bid}, {'_id': 0}).sort('created_at', -1).skip(skip).limit(limit).to_list(limit)
-    return {'sales': sales, 'total': total}
+    invoices = await db.invoices.find(query, {'_id': 0}).sort(
+        'created_at', -1).skip(skip).limit(limit).to_list(limit)
+
+    # lightweight customer join for list rendering
+    ids = {i.get('customer_id') for i in invoices if i.get('customer_id')}
+    customers = {}
+    if ids:
+        docs = await db.customers.find({'id': {'$in': list(ids)}},
+                                       {'_id': 0, 'id': 1, 'nm_id': 1, 'name': 1, 'phone': 1}).to_list(len(ids))
+        customers = {c['id']: c for c in docs}
+    for inv in invoices:
+        cust = customers.get(inv.get('customer_id'))
+        if cust:
+            inv['customer'] = {'id': cust['id'], 'nm_id': cust.get('nm_id'),
+                               'name': cust.get('name'), 'phone': cust.get('phone')}
+    return {'bills': invoices, 'total': total, 'page': page,
+            'pages': max(1, (total + limit - 1) // limit)}
+
 
 @router.post("")
-async def create_sale(req: CreateSaleRequest, user: dict = Depends(require_business)):
-    bid = user['business_id']
-    now = datetime.now(timezone.utc)
+async def post_bill(req: CreateBill, user: dict = Depends(require_business)):
+    payload = req.model_dump(exclude_none=True)
+    if not payload.get('items') and payload.get('amount') is None and not payload.get('customer_phone'):
+        pass
+    invoice = await create_invoice(user['shop_id'], user, payload)
+    await log_action(user['shop_id'], user['user_id'], 'bill_created', 'invoice',
+                     invoice['id'], {
+                         'invoice_number': invoice['invoice_number'],
+                         'amount_paise': invoice['total_paise'],
+                         'payment_mode': invoice.get('payment_mode'),
+                         'customer_id': invoice.get('customer_id'),
+                     })
+    return invoice
 
-    items_data = []
-    total_cost = 0.0
-    for item in req.items:
-        product = await db.products.find_one({'id': item.product_id, 'business_id': bid}, {'_id': 0})
-        if not product:
-            raise HTTPException(404, f"Product not found: {item.product_id}")
-        if product.get('stock_quantity', 0) < item.quantity:
-            raise HTTPException(400, f"Insufficient stock for {product['name']}: only {product.get('stock_quantity', 0)} left")
 
-        unit_price = product['selling_price']
-        item_discount = item.discount
-        item_total = (unit_price * item.quantity) - item_discount
-        cost = product.get('purchase_price', 0) * item.quantity
+@router.get("/summary/{bill_id}")
+async def bill_summary(bill_id: str, user: dict = Depends(require_business)):
+    return await get_bill(bill_id, user)
 
-        items_data.append({
-            'product_id': item.product_id,
-            'product_name': product['name'],
-            'sku': product.get('sku', ''),
-            'quantity': item.quantity,
-            'unit_price': unit_price,
-            'discount': item_discount,
-            'total': item_total,
-            'cost': cost
+
+@router.get("/{bill_id}")
+async def get_bill(bill_id: str, user: dict = Depends(require_business)):
+    shop_id = user['shop_id']
+    invoice = await db.invoices.find_one(
+        {'$or': [{'id': bill_id}, {'invoice_number': bill_id}],
+         'shop_id': shop_id}, {'_id': 0})
+    if invoice:
+        return invoice
+    legacy = await db.sales.find_one(
+        {'$or': [{'id': bill_id}, {'invoice_number': bill_id}],
+         'business_id': shop_id}, {'_id': 0})
+    if legacy:
+        legacy['legacy'] = True
+        return legacy
+    raise NotFound('Bill not found.', 'बिल सापडले नाही.')
+
+
+@router.post("/{bill_id}/void")
+async def void_bill(bill_id: str, body: Optional[dict] = None,
+                    user: dict = Depends(require_role('manager'))):
+    reason = (body or {}).get('reason')
+    invoice = await void_invoice(user['shop_id'], user, bill_id, reason)
+    await log_action(user['shop_id'], user['user_id'], 'bill_voided', 'invoice',
+                     invoice['id'], {'invoice_number': invoice['invoice_number'],
+                                     'reason': reason})
+    return invoice
+
+
+# ---------------------------------------------------------------------------
+# public receipt (share token — view-only, no session, no sensitive data)
+# ---------------------------------------------------------------------------
+@router.get("/public/receipt/{token}", include_in_schema=True)
+async def public_receipt(token: str):
+    from fastapi.responses import JSONResponse
+    invoice = await db.invoices.find_one({'share_token': token}, {'_id': 0})
+    if not invoice:
+        legacy = await db.sales.find_one({'share_token': token}, {'_id': 0})
+        if not legacy:
+            raise NotFound('Receipt not found.', 'रसीद सापडली नाही.')
+        invoice = legacy
+    shop = await db.businesses.find_one({'id': invoice.get('shop_id') or invoice.get('business_id')},
+                                        {'_id': 0, 'name': 1, 'phone': 1, 'location': 1, 'address': 1})
+    items = []
+    for it in invoice.get('items', []):
+        items.append({
+            'name': it.get('product_name') or it.get('name'),
+            'quantity': it.get('quantity'),
+            'unit_price': it.get('unit_price_paise') if 'unit_price_paise' in it else it.get('unit_price'),
+            'total': it.get('total_paise') if 'total_paise' in it else it.get('total'),
         })
-        total_cost += cost
-
-    subtotal = sum(i['total'] for i in items_data)
-    total_amount = subtotal - req.discount + req.tax
-
-    cashback_discount = req.loyalty_points_redeemed * 0.1
-    total_amount = max(0, total_amount - cashback_discount)
-
-    payment_status = 'paid'
-    paid_amount = total_amount
-    balance_amount = 0.0
-
-    if req.payment_mode == 'udhaar':
-        payment_status = 'pending'
-        paid_amount = 0.0
-        balance_amount = total_amount
-    elif req.paid_amount is not None and req.paid_amount < total_amount:
-        payment_status = 'partial'
-        paid_amount = req.paid_amount
-        balance_amount = total_amount - req.paid_amount
-
-    points_earned = total_amount / 10.0
-
-    customer_name = req.customer_name
-    if req.customer_id and not customer_name:
-        cust = await db.customers.find_one({'id': req.customer_id, 'business_id': bid}, {'_id': 0, 'name': 1})
-        if cust:
-            customer_name = cust['name']
-
-    invoice_number = await get_next_invoice_number(bid)
-    sale_id = str(uuid.uuid4())
-
-    sale_doc = {
-        'id': sale_id,
-        'business_id': bid,
-        'invoice_number': invoice_number,
-        'customer_id': req.customer_id,
-        'customer_name': customer_name,
-        'items': items_data,
-        'subtotal': subtotal,
-        'discount': req.discount,
-        'tax': req.tax,
-        'total_amount': total_amount,
-        'total_cost': total_cost,
-        'payment_mode': req.payment_mode,
-        'payment_status': payment_status,
-        'paid_amount': paid_amount,
-        'balance_amount': balance_amount,
-        'loyalty_points_earned': points_earned,
-        'loyalty_points_redeemed': req.loyalty_points_redeemed,
-        'notes': req.notes,
-        'created_at': now.isoformat(),
-        'created_by': user['user_id']
+    customer = None
+    if invoice.get('customer_id'):
+        c = await db.customers.find_one({'id': invoice['customer_id']},
+                                        {'_id': 0, 'name': 1, 'phone': 1, 'nm_id': 1})
+        if c:
+            customer = {'name': c.get('name'), 'nm_id': c.get('nm_id'),
+                        'phone_masked': (c.get('phone') or '')[:2] + 'XXXXX' + (c.get('phone') or '')[-3:]
+                        if c.get('phone') else None}
+    return {
+        'shop': {'name': (shop or {}).get('name'), 'location': (shop or {}).get('location') or (shop or {}).get('address')},
+        'invoice_number': invoice.get('invoice_number'),
+        'status': invoice.get('status', 'ACTIVE'),
+        'created_at': invoice.get('created_at'),
+        'customer': customer,
+        'items': items,
+        'subtotal': invoice.get('subtotal_paise', invoice.get('subtotal')),
+        'discount': invoice.get('discount_paise', invoice.get('discount')),
+        'total': invoice.get('total_paise', invoice.get('total_amount')),
+        'payment_mode': invoice.get('payment_mode'),
+        'payment_status': invoice.get('payment_status'),
+        'loyalty_earned_points': invoice.get('loyalty_earned_points') or 0,
+        'loyalty_redeemed_points': invoice.get('loyalty_redeemed_points') or 0,
+        'loyalty_redeemed_value': invoice.get('loyalty_redeemed_value_paise', 0),
+        'paise_fields': True if 'total_paise' in invoice else False,
     }
-    await db.sales.insert_one(sale_doc)
-
-    for item in items_data:
-        await db.products.update_one(
-            {'id': item['product_id'], 'business_id': bid},
-            {'$inc': {'stock_quantity': -item['quantity']}}
-        )
-
-    if req.customer_id:
-        new_points = await db.customers.find_one({'id': req.customer_id}, {'_id': 0, 'loyalty_points': 1})
-        current_points = new_points.get('loyalty_points', 0) if new_points else 0
-        updated_points = current_points + points_earned - req.loyalty_points_redeemed
-        membership = get_membership_level(updated_points)
-
-        await db.customers.update_one(
-            {'id': req.customer_id, 'business_id': bid},
-            {'$inc': {'total_purchases': total_amount, 'total_visits': 1},
-             '$set': {'last_purchase_at': now.isoformat(), 'loyalty_points': updated_points, 'membership_level': membership}}
-        )
-        await db.loyalty_transactions.insert_one({
-            'id': str(uuid.uuid4()), 'business_id': bid, 'customer_id': req.customer_id,
-            'sale_id': sale_id, 'points_earned': points_earned,
-            'points_redeemed': req.loyalty_points_redeemed, 'created_at': now.isoformat()
-        })
-
-    if req.payment_mode == 'udhaar' and req.customer_id:
-        udhaar_doc = await db.udhaar.find_one({'business_id': bid, 'customer_id': req.customer_id}, {'_id': 0})
-        entry = {'date': now.isoformat(), 'description': f"Udhaar - {invoice_number}", 'amount': total_amount, 'type': 'given', 'sale_id': sale_id}
-        if udhaar_doc:
-            new_outstanding = udhaar_doc.get('outstanding', 0) + total_amount
-            await db.udhaar.update_one(
-                {'business_id': bid, 'customer_id': req.customer_id},
-                {'$inc': {'total_credit': total_amount, 'outstanding': total_amount},
-                 '$push': {'entries': entry}, '$set': {'last_transaction_at': now.isoformat()}}
-            )
-        else:
-            cust_info = await db.customers.find_one({'id': req.customer_id}, {'_id': 0, 'name': 1, 'phone': 1})
-            await db.udhaar.insert_one({
-                'id': str(uuid.uuid4()), 'business_id': bid, 'customer_id': req.customer_id,
-                'customer_name': cust_info.get('name', customer_name) if cust_info else customer_name,
-                'customer_phone': cust_info.get('phone') if cust_info else None,
-                'total_credit': total_amount, 'total_paid': 0.0, 'outstanding': total_amount,
-                'entries': [entry], 'last_transaction_at': now.isoformat(), 'created_at': now.isoformat()
-            })
-
-    sale_doc.pop('_id', None)
-    return sale_doc
-
-@router.get("/{sale_id}")
-async def get_sale(sale_id: str, user: dict = Depends(require_business)):
-    bid = user['business_id']
-    sale = await db.sales.find_one({'$or': [{'id': sale_id}, {'invoice_number': sale_id}], 'business_id': bid}, {'_id': 0})
-    if not sale:
-        raise HTTPException(404, "Sale not found")
-    return sale
