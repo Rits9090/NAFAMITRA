@@ -1,16 +1,19 @@
 import React from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { Home, Receipt, Gift, Wallet, UserCircle2, Repeat2, LogOut } from 'lucide-react';
+import { Home, Search, Receipt, Coins, UserCircle2, Repeat2, LogOut } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
 import { LanguageSwitcher } from '@/pages/Login';
 
+// Customer shell: exactly 5 tabs per spec (Home / Search / Purchases /
+// My Nafa / Account). Credit + loyalty history live under My Nafa/Account
+// as deep links — reachable from those pages, not as extra tabs.
 const nav = [
   { to: '/c', labelKey: 'nav.home', icon: Home, exact: true },
-  { to: '/c/bills', labelKey: 'nav.bills', icon: Receipt },
-  { to: '/c/loyalty', labelKey: 'nav.loyalty', icon: Gift },
-  { to: '/c/credit', labelKey: 'nav.credit', icon: Wallet },
-  { to: '/c/profile', labelKey: 'common.profile', icon: UserCircle2 },
+  { to: '/c/search', labelKey: 'nav.search', icon: Search },
+  { to: '/c/bills', labelKey: 'nav.purchases', icon: Receipt },
+  { to: '/c/nafa', labelKey: 'nav.myNafa', icon: Coins },
+  { to: '/c/profile', labelKey: 'nav.account', icon: UserCircle2 },
 ];
 
 export default function CustomerApp() {

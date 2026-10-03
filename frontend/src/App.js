@@ -33,6 +33,10 @@ const CustomerLoyalty = lazy(() => import('@/pages/customer/Bills').then((m) => 
 const CustomerCredit = lazy(() => import('@/pages/customer/Bills').then((m) => ({ default: m.CustomerCredit })));
 const CustomerProfile = lazy(() => import('@/pages/customer/Profile').then((m) => ({ default: m.CustomerProfile })));
 const PassbookEntry = lazy(() => import('@/pages/customer/Profile').then((m) => ({ default: m.PassbookEntry })));
+const CustomerSearch = lazy(() => import('@/pages/customer/Search'));
+const CustomerMyNafa = lazy(() => import('@/pages/customer/MyNafa'));
+const CustomerNotifications = lazy(() => import('@/pages/customer/Notifications'));
+const MerchantRequirements = lazy(() => import('@/pages/Requirements'));
 const PublicReceipt = lazy(() => import('@/pages/PublicReceipt'));
 
 function Boot({ children }) {
@@ -111,6 +115,7 @@ function AppRoutes() {
           <Route path="assistant" element={<AIAssistant />} />
           <Route path="settings" element={<Settings />} />
           <Route path="marketing" element={<Marketing />} />
+          <Route path="requirements" element={<MerchantRequirements />} />
           {/* legacy paths preserved */}
           <Route path="udhaar" element={<Navigate to="/credit" replace />} />
           <Route path="dhanlabh" element={<Navigate to="/loyalty" replace />} />
@@ -124,6 +129,9 @@ function AppRoutes() {
           <Route path="bills/:id" element={<CustomerBillDetail />} />
           <Route path="loyalty" element={<CustomerLoyalty />} />
           <Route path="credit" element={<CustomerCredit />} />
+          <Route path="search" element={<CustomerSearch />} />
+          <Route path="nafa" element={<CustomerMyNafa />} />
+          <Route path="notifications" element={<CustomerNotifications />} />
           <Route path="profile" element={<CustomerProfile />} />
         </Route>
 

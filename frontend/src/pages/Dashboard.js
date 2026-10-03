@@ -9,6 +9,7 @@ import {
   ArrowRight, Wallet, Repeat2, ChevronRight, Activity,
 } from 'lucide-react';
 import { DASHBOARD } from '@/constants/testIds';
+import TodaysActions from '@/components/TodaysActions';
 
 function greetingKey() {
   const h = new Date().getHours();
@@ -156,6 +157,9 @@ export default function Dashboard() {
           </button>
         ))}
       </div>
+
+      {/* Today's Actions — real-data priorities */}
+      <TodaysActions />
 
       {/* Primary metrics */}
       <div className="grid grid-cols-2 gap-3" data-testid={DASHBOARD.alertsSection ? undefined : undefined}>

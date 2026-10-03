@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Package, Gift, BarChart2, UserCog, Settings, Truck, Megaphone, Mic,
-  MessageSquare, LogOut, UserCircle2, Languages, Store,
+  MessageSquare, LogOut, UserCircle2, Languages, Store, ClipboardList,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
@@ -16,6 +16,7 @@ const items = [
   { to: '/settings', labelKey: 'nav.settings', icon: Settings },
   { to: '/suppliers', labelKey: 'nav.suppliers', icon: Truck },
   { to: '/marketing', labelKey: 'nav.marketing', icon: Megaphone },
+  { to: '/requirements', labelKey: 'nav.requirements', icon: ClipboardList },
   { to: '/voice', labelKey: 'nav.voice', icon: Mic },
   { to: '/assistant', labelKey: 'nav.assistant', icon: MessageSquare },
 ];

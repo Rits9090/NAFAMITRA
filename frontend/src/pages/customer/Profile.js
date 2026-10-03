@@ -109,6 +109,22 @@ export function CustomerProfile() {
         <p className="text-[11px] text-slate-400 text-center mt-2">{t('app.verifyFail')} → {t('app.loginInstead')}</p>
       </div>
 
+      {/* Quick links — Account is the hub for everything not in the 5 tabs */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm divide-y divide-slate-50">
+        {[
+          { to: '/c/notifications', labelKey: 'nav.notifications', icon: '🔔' },
+          { to: '/c/credit', labelKey: 'nav.credit', icon: '₹' },
+          { to: '/c/loyalty', labelKey: 'nav.loyalty', icon: '🪙' },
+          { to: '/c/search', labelKey: 'search.tabShops', icon: '⭐' },
+        ].map(({ to, labelKey, icon }) => (
+          <button key={to} onClick={() => navigate(to)}
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+            <span className="flex items-center gap-2"><span aria-hidden>{icon}</span>{t(labelKey)}</span>
+            <span className="text-slate-300">›</span>
+          </button>
+        ))}
+      </div>
+
       {/* language */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-3 flex items-center justify-between">
         <span className="text-sm font-semibold text-slate-600 flex items-center gap-2">
