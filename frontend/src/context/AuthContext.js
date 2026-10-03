@@ -7,7 +7,7 @@
  * server-side (X-Shop-Id + membership check) — never trusted from the client.
  */
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import api, { setUnauthorizedHandler, errMsg } from '@/lib/api';
+import api, { setUnauthorizedHandler, errMsg, setSessionToken, clearSessionToken } from '@/lib/api';
 
 const AuthContext = createContext({});
 
@@ -21,7 +21,7 @@ export function AuthProvider({ children }) {
   const [activeShop, setActiveShop] = useState(() => localStorage.getItem(SHOP_KEY));
 
   const clearSession = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY);
+    clearSessionToken();
     localStorage.removeItem(SHOP_KEY);
     setToken(null);
     setMe(null);
@@ -65,7 +65,7 @@ export function AuthProvider({ children }) {
 
   const verifyOtp = useCallback(async (phone, code) => {
     const { data } = await api.post('/auth/verify-otp', { phone, code });
-    localStorage.setItem(TOKEN_KEY, data.token);
+    setSessionToken(data.token);
     setToken(data.token);
     // resolve identities right away so routing decisions are immediate
     const meData = await api.get('/auth/me').then((r) => r.data);

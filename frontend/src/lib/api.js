@@ -18,6 +18,30 @@ const store = {
   getLang: () => localStorage.getItem('nafamitra_lang') || 'mr',
 };
 
+/**
+ * The session token travels on THREE channels so no proxy in front of the
+ * app can break login: Authorization header, X-Auth-Token header, and a
+ * same-site cookie.  The server accepts any of them.
+ */
+function syncTokenCookie(token) {
+  try {
+    if (token) {
+      const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+      document.cookie = `nafamitra_token=${token}; Path=/; Max-Age=2592000; SameSite=Lax${secure}`;
+    } else {
+      document.cookie = 'nafamitra_token=; Path=/; Max-Age=0; SameSite=Lax';
+    }
+  } catch { /* cookies may be blocked — headers still carry the token */ }
+}
+export function setSessionToken(token) {
+  localStorage.setItem('nafamitra_token', token);
+  syncTokenCookie(token);
+}
+export function clearSessionToken() {
+  localStorage.removeItem('nafamitra_token');
+  syncTokenCookie(null);
+}
+
 let onUnauthorized = null;
 export function setUnauthorizedHandler(fn) { onUnauthorized = fn; }
 
@@ -25,7 +49,11 @@ export const api = axios.create({ baseURL: API_BASE, timeout: 30000 });
 
 api.interceptors.request.use((config) => {
   const token = store.getToken();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+    config.headers['X-Auth-Token'] = token;
+    syncTokenCookie(token); // keep the cookie channel warm even on old sessions
+  }
   const shopId = store.getShopId();
   if (shopId) config.headers['X-Shop-Id'] = shopId;
   return config;

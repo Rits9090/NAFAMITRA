@@ -80,6 +80,15 @@ def main():
     st = shops[0].get('settings') if shops else None
     check('shop settings exposed', st is not None and 'loyalty_points_per_100' in st and 'prevent_below_min' in st, st)
 
+    print('== 3b. Auth transport fallbacks (edge proxies strip Authorization) ==')
+    tok = m.token
+    r = requests.get(BASE + '/auth/me', headers={'X-Auth-Token': tok}, timeout=15)
+    check('me via X-Auth-Token only', r.status_code == 200, r.text)
+    r = requests.get(BASE + '/auth/me', headers={'Cookie': f'nafamitra_token={tok}'}, timeout=15)
+    check('me via cookie only', r.status_code == 200, r.text)
+    r = requests.get(BASE + '/auth/me', timeout=15)
+    check('me with no token still 401', r.status_code == 401, r.status_code)
+
     print('== 4. Dashboard (UI calls) ==')
     r = m.req('GET', '/dashboard/stats')
     ok = r.status_code == 200 and 'today' in r.json() and 'outstanding_paise' in r.json()

@@ -82,20 +82,43 @@ def decode_token(token: str) -> dict:
                            'अवैध सत्र. कृपया पुन्हा साइन इन करा.')
 
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
+def _extract_token(request: Optional[Request],
+                    credentials: Optional[HTTPAuthorizationCredentials]) -> Optional[str]:
+    """Token from any transport channel.
+
+    The preview edge proxy in front of this app does not reliably forward the
+    Authorization header, so the client also sends X-Auth-Token and a cookie;
+    all three channels are accepted here.  Whichever arrives first wins.
+    """
+    if credentials is not None and credentials.credentials:
+        return credentials.credentials
+    if request is not None:
+        auth = request.headers.get('authorization', '')
+        if auth.lower().startswith('bearer ') and auth[7:].strip():
+            return auth[7:].strip()
+        alt = (request.headers.get('x-auth-token') or '').strip()
+        if alt:
+            return alt
+        cookie = (request.cookies.get('nafamitra_token') or '').strip()
+        if cookie:
+            return cookie
+    return None
+
+
+async def get_current_user(request: Request,
+                           credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
     """Resolve the authenticated session payload."""
-    if credentials is None:
+    token = _extract_token(request, credentials)
+    if not token:
         raise Unauthorized()
-    return decode_token(credentials.credentials)
+    return decode_token(token)
 
 
 def _bearer(request: Request, credentials) -> dict:
-    if credentials is None:
-        auth = request.headers.get('authorization', '')
-        if auth.lower().startswith('bearer '):
-            return decode_token(auth[7:])
+    token = _extract_token(request, credentials)
+    if not token:
         raise Unauthorized()
-    return decode_token(credentials.credentials)
+    return decode_token(token)
 
 
 # ---------------------------------------------------------------------------

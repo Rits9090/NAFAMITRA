@@ -31,9 +31,14 @@ async def track_event(body: EventIn, authorization: Optional[str] = Header(None)
     """Best-effort activation event sink. Never raises to the client."""
     user_id = None
     shop_id = None
-    if authorization and authorization.lower().startswith('bearer '):
+    raw = authorization or ''
+    if raw.lower().startswith('bearer '):
+        raw = raw.split(' ', 1)[1]
+    if not raw.strip():
+        raw = ''  # falls through to no-auth (events still accepted)
+    if raw.strip():
         try:
-            payload = decode_token(authorization.split(' ', 1)[1])
+            payload = decode_token(raw.strip())
             user_id = payload.get('user_id')
             # Resolve via membership, not the token claim: the OTP session is
             # issued before any shop exists, so business_id may be stale/null.
