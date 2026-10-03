@@ -173,12 +173,51 @@ async def outstanding_report(user: dict = Depends(require_business)):
 
 @router.get("/inventory")
 async def inventory_report(user: dict = Depends(require_business)):
+    from datetime import datetime, timedelta, timezone
     shop_id = user['shop_id']
     products = await db.products.find(
         {'business_id': shop_id, 'is_active': {'$ne': False}},
-        {'_id': 0, 'name': 1, 'category': 1, 'stock_quantity': 1,
-         'low_stock_threshold': 1, 'selling_price': 1, 'purchase_price': 1}).to_list(1000)
+        {'_id': 0, 'id': 1, 'name': 1, 'category': 1, 'stock_quantity': 1,
+         'low_stock_threshold': 1, 'selling_price': 1, 'purchase_price': 1,
+         'created_at': 1}).to_list(1000)
     value = sum(p.get('stock_quantity', 0) * float(p.get('purchase_price') or 0) for p in products)
     low = [p for p in products if p.get('stock_quantity', 0) <= p.get('low_stock_threshold', 5)]
+    out = [p for p in products if p.get('stock_quantity', 0) <= 0]
+
+    # Dead stock (अडकलेला पैसा): stock with ZERO sales in the last 30 days.
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    sold_ids, sold_names = set(), set()
+    rows = await db.invoices.aggregate([
+        {'$match': {'shop_id': shop_id, 'status': 'ACTIVE', 'created_at': {'$gte': cutoff}}},
+        {'$unwind': '$items'},
+        {'$group': {'_id': None, 'pids': {'$addToSet': '$items.product_id'},
+                    'names': {'$addToSet': '$items.name'}}},
+    ]).to_list(1)
+    if rows:
+        sold_ids = {x for x in (rows[0].get('pids') or []) if x}
+        sold_names = {(x or '').lower() for x in (rows[0].get('names') or [])}
+    for s in await db.sales.find({'business_id': shop_id, 'created_at': {'$gte': cutoff}},
+                                 {'_id': 0, 'items': 1}).to_list(2000):
+        for it in s.get('items') or []:
+            if it.get('product_id'):
+                sold_ids.add(it['product_id'])
+            if it.get('product_name'):
+                sold_names.add((it['product_name'] or '').lower())
+
+    dead = []
+    for p in products:
+        if p.get('stock_quantity', 0) <= 0:
+            continue
+        if p.get('id') in sold_ids or (p.get('name') or '').lower() in sold_names:
+            continue
+        stuck = round(p.get('stock_quantity', 0) * float(p.get('purchase_price') or 0), 2)
+        dead.append({'id': p.get('id'), 'name': p.get('name'), 'category': p.get('category'),
+                     'stock_quantity': p.get('stock_quantity'),
+                     'purchase_price': p.get('purchase_price'),
+                     'stuck_amount': stuck})
+    dead.sort(key=lambda x: -x['stuck_amount'])
     return {'products': products, 'stock_value': round(value, 2),
-            'low_stock_count': len(low), 'total_products': len(products)}
+            'low_stock_count': len(low), 'total_products': len(products),
+            'low_stock': low, 'out_of_stock': out,
+            'dead_stock': dead[:50],
+            'dead_stock_amount': round(sum(d['stuck_amount'] for d in dead), 2)}

@@ -66,6 +66,7 @@ export default function CustomerHome() {
 
   return (
     <div className="space-y-4 animate-fadeInUp">
+      <h1 className="sr-only">{t('nafa.homeTitle')}</h1>
       {/* Greeting + dhanlabh hero */}
       <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-2xl p-5 text-white shadow-lg shadow-emerald-600/20">
         <p className="text-sm text-emerald-100">{t('app.greeting', { name })}</p>

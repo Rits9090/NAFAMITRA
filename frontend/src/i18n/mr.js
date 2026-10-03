@@ -513,6 +513,7 @@ export default {
     spendTitle: 'गेल्या 30 दिवसांचे खर्च', last30: 'हे 30 दिवस', prev30: 'मागील 30 दिवस',
     notEnoughCompare: 'तुलनेसाठी अपुरा डेटा — किमान प्रत्येक कालावधीत {n} बिले हवी.',
     billsCount: '{n} बिले', vsPrev: 'मागील कालावधीपेक्षा', firstPeriod: 'नवीन आरंभ',
+    homeTitle: 'माझा Nafa',
     perShop: 'दुकाननिहाय धनलाभ', noPoints: 'अद्याप धनलाभ नाही',
     noPointsSub: 'खरेदी करताच धनलाभ पॉइंट्स मिळतील.',
     pointsBalance: '{n} पॉइंट्स', redeemableValue: 'रिडीम मूल्य',
@@ -563,6 +564,7 @@ export default {
     visits: '{n} भेटी', customersDues: 'देय असलेले ग्राहक', pendingPayments: 'प्रलंबित पेमेंट',
     totalProducts: 'एकूण वस्तू', lowStock: 'कमी स्टॉक', outStock: 'संपलेला स्टॉक',
     lowStockAction: 'कमी स्टॉक — लगेच कृती करा', onlyLeft: 'फक्त {n} बाकी',
+    deadStock: 'अडकलेला पैसा (30 दिवस न विक्री)', deadStockSub: 'ही वस्तू 30 दिवसांपासूनवर विकलेली नाही — साठा पैशात अडकला आहे.', stuck: '{n} बाकी साठा',
   },
   voice: {
     title: 'व्हॉइस असिस्टंट', sub: 'मराठी, हिंदी किंवा इंग्रजीत बोला',

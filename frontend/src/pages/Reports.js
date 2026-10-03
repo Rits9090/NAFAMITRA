@@ -258,6 +258,28 @@ export default function Reports() {
                   <p className="text-xs text-red-500 font-semibold">{t('rep.outStock')}</p>
                 </div>
               </div>
+              {inventoryData.dead_stock_amount > 0 && (
+                <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden" data-testid="dead-stock">
+                  <div className="px-4 py-3 border-b border-slate-50 bg-rose-50 flex items-center justify-between">
+                    <h3 className="font-bold text-rose-700">{t('rep.deadStock')}</h3>
+                    <span className="text-sm font-bold font-mono text-rose-600">₹{Number(inventoryData.dead_stock_amount).toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="px-4 py-2 border-b border-slate-50">
+                    <p className="text-[11px] text-slate-400">{t('rep.deadStockSub')}</p>
+                  </div>
+                  <div className="divide-y divide-slate-50">
+                    {(inventoryData.dead_stock || []).slice(0, 6).map(p => (
+                      <div key={p.id || p.name} className="flex items-center justify-between px-4 py-2.5">
+                        <div>
+                          <p className="text-sm font-medium text-slate-700">{p.name}</p>
+                          <p className="text-xs text-slate-400">{t('rep.stuck', { n: String(p.stock_quantity) })}</p>
+                        </div>
+                        <span className="text-sm font-bold font-mono text-rose-600">₹{Number(p.stuck_amount).toLocaleString('en-IN')}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {inventoryData.low_stock?.length > 0 && (
                 <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
                   <div className="px-4 py-3 border-b border-slate-50 bg-amber-50">

@@ -288,6 +288,7 @@ export default {
     spendTitle: 'Last 30 days spending', last30: 'This 30 days', prev30: 'Previous 30 days',
     notEnoughCompare: 'Not enough data to compare — need {n} bills in each period.',
     billsCount: '{n} bills', vsPrev: 'vs previous period', firstPeriod: 'new baseline',
+    homeTitle: 'My Nafa',
     perShop: 'Shop-wise dhanlabh', noPoints: 'No dhanlabh yet',
     noPointsSub: 'You earn points when you shop.',
     pointsBalance: '{n} points', redeemableValue: 'redeemable value',
@@ -338,6 +339,7 @@ export default {
     visits: '{n} visits', customersDues: 'Customers with Dues', pendingPayments: 'Pending Payments',
     totalProducts: 'Total Products', lowStock: 'Low Stock', outStock: 'Out of Stock',
     lowStockAction: 'Low Stock Items — Action Required', onlyLeft: 'Only {n} left',
+    deadStock: 'Stuck money (no sales in 30 days)', deadStockSub: 'These items have not sold for 30 days — your cash is sitting on the shelf.', stuck: '{n} units stuck',
   },
   voice: {
     title: 'Voice Assistant', sub: 'Speak in Marathi, Hindi or English',
