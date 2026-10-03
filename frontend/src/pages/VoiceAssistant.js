@@ -1,9 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import axios from 'axios';
 import { toast } from 'sonner';
 import { Mic, MicOff, CheckCircle, AlertCircle, Loader, Volume2, History, Sparkles, X, ChevronRight } from 'lucide-react';
+import api, { errMsg } from '@/lib/api';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const STATES = { IDLE: 'idle', LISTENING: 'listening', TRANSCRIBING: 'transcribing', UNDERSTANDING: 'understanding', REVIEW: 'review', EXECUTING: 'executing', SUCCESS: 'success', ERROR: 'error' };
 
 const SAMPLE_COMMANDS = [
@@ -30,7 +29,7 @@ export default function VoiceAssistant() {
 
   const loadHistory = async () => {
     try {
-      const { data } = await axios.get(`${API}/voice/history`);
+      const { data } = await api.get(`/voice/history`);
       setHistory(data || []);
     } catch {}
   };
@@ -68,7 +67,7 @@ export default function VoiceAssistant() {
     try {
       const formData = new FormData();
       formData.append('audio', blob, 'voice.webm');
-      const { data } = await axios.post(`${API}/voice/transcribe`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const { data } = await api.post(`/voice/transcribe`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       setTranscription(data.transcription);
       await processText(data.transcription);
     } catch {
@@ -79,7 +78,7 @@ export default function VoiceAssistant() {
   const processText = async (text) => {
     setState(STATES.UNDERSTANDING);
     try {
-      const { data } = await axios.post(`${API}/voice/understand`, { transcription: text });
+      const { data } = await api.post(`/voice/understand`, { transcription: text });
       setIntentData(data);
       setState(STATES.REVIEW);
     } catch {
@@ -90,14 +89,14 @@ export default function VoiceAssistant() {
   const handleConfirm = async () => {
     setState(STATES.EXECUTING);
     try {
-      const { data } = await axios.post(`${API}/voice/execute`, { intent: intentData.intent, entities: intentData, session_id: intentData.session_id });
+      const { data } = await api.post(`/voice/execute`, { intent: intentData.intent, entities: intentData, session_id: intentData.session_id });
       setResult(data);
       setState(STATES.SUCCESS);
       toast.success(data.message || 'Done!');
       loadHistory();
     } catch (err) {
       setState(STATES.ERROR);
-      setResult({ error: err.response?.data?.detail || 'Execution failed' });
+      setResult({ error: errMsg(err, 'Execution failed') });
     }
   };
 

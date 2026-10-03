@@ -138,6 +138,19 @@ let webpackConfig = {
 };
 
 webpackConfig.devServer = (devServerConfig) => {
+  // Preview sandbox: accept the proxied public host (e2b.app) and proxy the
+  // API same-origin so the browser never has to reach localhost directly.
+  devServerConfig.allowedHosts = 'all';
+  devServerConfig.host = process.env.HOST || '0.0.0.0';
+  devServerConfig.proxy = [
+    {
+      context: ['/api'],
+      target: process.env.BACKEND_PROXY_TARGET || 'http://127.0.0.1:8001',
+      changeOrigin: true,
+      secure: false,
+    },
+  ];
+
   // Add health check endpoints if enabled
   if (config.enableHealthCheck && setupHealthEndpoints && healthPluginInstance) {
     const originalSetupMiddlewares = devServerConfig.setupMiddlewares;

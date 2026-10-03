@@ -119,10 +119,19 @@ async def identity_resolution(user: dict) -> dict:
     for m in memberships:
         shop = await db.businesses.find_one({'id': m['shop_id']}, {'_id': 0})
         if shop:
+            s = shop.get('settings') or {}
             shops.append({
                 'id': shop['id'], 'name': shop['name'],
                 'category': shop.get('category'), 'role': m.get('role', 'cashier'),
                 'location': shop.get('location') or shop.get('address'),
+                # non-sensitive shop settings the SPA needs (loyalty maths, safe price policy)
+                'settings': {
+                    'loyalty_points_per_100': int(s.get('loyalty_points_per_100', 1) or 0),
+                    'redemption_value_paise': int(s.get('redemption_value_paise',
+                        round(float(s.get('redemption_value', 0.1) or 0.1) * 100))),
+                    'loyalty_enabled': bool(s.get('loyalty_enabled', True)),
+                    'prevent_below_min': bool(s.get('prevent_below_min', False)),
+                },
             })
     profiles = await customer_profiles_for_user(user)
     customer_profiles = [
@@ -425,6 +434,29 @@ async def setup_business(req: BusinessSetupRequest, current_user: dict = Depends
     new_token = create_access_token(user_id, person.get('email', ''), shop_id, 'owner')
     business_doc.pop('_id', None)
     return {'token': new_token, 'business': business_doc}
+
+
+class ShopSettingsUpdate(BaseModel):
+    """Owner-controlled shop switches. Unknown fields are ignored (pydantic)."""
+    prevent_below_min: Optional[bool] = None
+    loyalty_enabled: Optional[bool] = None
+
+
+@router.put('/shop/settings')
+async def update_shop_settings(req: ShopSettingsUpdate,
+                               user: dict = Depends(require_role('owner'))):
+    updates = {}
+    if req.prevent_below_min is not None:
+        updates['settings.prevent_below_min'] = req.prevent_below_min
+    if req.loyalty_enabled is not None:
+        updates['settings.loyalty_enabled'] = req.loyalty_enabled
+    if updates:
+        updates['updated_at'] = _now()
+        await db.businesses.update_one({'id': user['shop_id']}, {'$set': updates})
+        await log_action(user['shop_id'], user['user_id'], 'shop_settings_changed',
+                         'shop', user['shop_id'], {'fields': sorted(updates)})
+    shop = await db.businesses.find_one({'id': user['shop_id']}, {'_id': 0, 'settings': 1})
+    return {'settings': (shop or {}).get('settings') or {}}
 
 
 @router.put('/business')

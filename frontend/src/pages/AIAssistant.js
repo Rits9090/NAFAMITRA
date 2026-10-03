@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
 import { Send, Sparkles, User, Bot, Trash2, Plus, MessageSquare } from 'lucide-react';
 import { AI } from '@/constants/testIds';
+import api, { API_BASE } from '@/lib/api';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const SUGGESTED_QUERIES = [
   "How are my sales this month?",
@@ -45,9 +44,14 @@ export default function AIAssistant() {
     setMessages(prev => [...prev, assistantMsg]);
 
     try {
-      const response = await fetch(`${API}/assistant/chat`, {
+      const shopId = localStorage.getItem('nafamitra_shop');
+      const response = await fetch(`${API_BASE}/assistant/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('nafamitra_token')}` },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('nafamitra_token')}`,
+          ...(shopId ? { 'X-Shop-Id': shopId } : {}),
+        },
         body: JSON.stringify({ message: msg, session_id: sessionId })
       });
 
@@ -79,7 +83,7 @@ export default function AIAssistant() {
 
   const clearChat = async () => {
     try {
-      await axios.delete(`${API}/assistant/sessions/${sessionId}`);
+      await api.delete(`/assistant/sessions/${sessionId}`);
     } catch {}
     const newSessionId = `session_${Date.now()}`;
     setSessionId(newSessionId);

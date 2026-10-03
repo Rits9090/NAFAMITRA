@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { toast } from 'sonner';
 import { CreditCard, Plus, IndianRupee, X, TrendingDown, ChevronRight, Phone, AlertTriangle } from 'lucide-react';
 import { UDHAAR } from '@/constants/testIds';
+import api, { errMsg } from '@/lib/api';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export default function Udhaar() {
   const [udhaars, setUdhaars] = useState([]);
@@ -24,7 +23,7 @@ export default function Udhaar() {
   const loadUdhaar = async () => {
     setLoading(true);
     try {
-      const { data } = await axios.get(`${API}/udhaar`);
+      const { data } = await api.get(`/udhaar`);
       setUdhaars(data.udhaars || []);
       setTotalOutstanding(data.total_outstanding || 0);
     } finally {
@@ -35,7 +34,7 @@ export default function Udhaar() {
   const searchCustomers = async (q) => {
     setCustSearch(q);
     if (q.length < 2) { setCustomers([]); return; }
-    const { data } = await axios.get(`${API}/customers/search?q=${q}`);
+    const { data } = await api.get(`/customers/search?q=${q}`);
     setCustomers(data);
   };
 
@@ -44,13 +43,13 @@ export default function Udhaar() {
     if (!addForm.customer_id || !addForm.amount) return toast.error('Select customer and enter amount');
     setSubmitting(true);
     try {
-      await axios.post(`${API}/udhaar`, addForm);
+      await api.post(`/udhaar`, addForm);
       toast.success('Udhaar entry added!');
       setShowAddModal(false);
       setAddForm({ customer_id: '', amount: '', description: 'Udhaar given' });
       loadUdhaar();
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed');
+      toast.error(errMsg(err, 'Failed'));
     } finally {
       setSubmitting(false);
     }
@@ -61,13 +60,13 @@ export default function Udhaar() {
     if (!payForm.amount) return toast.error('Enter payment amount');
     setSubmitting(true);
     try {
-      await axios.post(`${API}/udhaar/${selected.id}/payment`, payForm);
+      await api.post(`/udhaar/${selected.id}/payment`, payForm);
       toast.success(`Payment of ₹${payForm.amount} recorded!`);
       setShowPayModal(false);
       setPayForm({ amount: '', payment_mode: 'cash', notes: '' });
       loadUdhaar();
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed');
+      toast.error(errMsg(err, 'Failed'));
     } finally {
       setSubmitting(false);
     }

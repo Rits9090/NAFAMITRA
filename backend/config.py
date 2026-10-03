@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
+from phones import normalize_phone
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
@@ -68,6 +70,16 @@ FEATURES = {
     'ai_assistant': _bool('FEATURE_AI_ASSISTANT', 'true'),
     'customer_magic_links': _bool('FEATURE_MAGIC_LINKS', 'true'),
     'qr_scanning': _bool('FEATURE_QR_SCANNING', 'true'),
+}
+
+# Internal pilot admin: comma-separated phone numbers.  Empty = disabled
+# (the /admin/shop-health endpoint returns 404 and the UI stays hidden).
+ADMIN_PHONES = {
+    np for np in (
+        normalize_phone(p)
+        for p in os.environ.get('ADMIN_PHONES', '').split(',')
+        if p.strip()
+    ) if np
 }
 
 SESSION_TOKEN_DAYS = int(os.environ.get('SESSION_TOKEN_DAYS', '30'))

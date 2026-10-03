@@ -25,6 +25,20 @@ def check(name, cond, extra=''):
         print(f'  ✗ {name} {extra}')
 
 
+def rand_phone():
+    """Unique valid Indian mobile per run — makes the suite re-runnable."""
+    import random
+    return random.choice('789') + ''.join(random.choice('0123456789') for _ in range(9))
+
+
+P_SHOP_A = rand_phone()
+P_SHOP_B = rand_phone()
+P_RAHUL = rand_phone()
+P_OTHER = rand_phone()
+P_CASHIER = rand_phone()
+P_WRONG = rand_phone()
+
+
 class Client:
     def __init__(self):
         self.token = None
@@ -59,13 +73,15 @@ def otp_login(phone, name=None):
 
 def main():
     print('== OTP login ==')
-    shop_a, login_a = otp_login('9822334455')
+    shop_a, login_a = otp_login(P_SHOP_A)
     check('new user detected', login_a['is_new'] is True)
     check('identities kind new', login_a['identities']['kind'] == 'new', str(login_a['identities']['kind']))
 
     # OTP errors (fresh number so an active code exists)
-    requests.post(BASE + '/api/auth/request-otp', json={'phone': '9700556677'})
-    r = requests.post(BASE + '/api/auth/verify-otp', json={'phone': '9700556677', 'code': '00000'})
+    r_otp = requests.post(BASE + '/api/auth/request-otp', json={'phone': P_WRONG})
+    dev = (r_otp.json() or {}).get('dev_otp')
+    wrong_code = '00000' if dev != '00000' else '11111'  # guaranteed-wrong
+    r = requests.post(BASE + '/api/auth/verify-otp', json={'phone': P_WRONG, 'code': wrong_code})
     check('wrong OTP rejected', r.status_code == 400 and r.json()['error']['code'] == 'otp_invalid', r.text)
     r = requests.post(BASE + '/api/auth/request-otp', json={'phone': '12345'})
     check('invalid phone rejected', r.status_code == 400)
@@ -82,7 +98,7 @@ def main():
           r.json()['identities']['kind'] == 'merchant', r.text)
 
     print('== Second shop (Shop B) ==')
-    shop_b, _ = otp_login('9777665544')
+    shop_b, _ = otp_login(P_SHOP_B)
     r = shop_b.req('POST', '/api/auth/onboard/shop', json={
         'owner_name': 'Suresh Sharma', 'shop_name': 'Sharma Hardware',
         'category': 'hardware', 'location': 'Nashik'})
@@ -98,12 +114,12 @@ def main():
     product = r.json() if r.status_code == 200 else {}
 
     print('== Customer resolve + quick bill (spec §97) ==')
-    r = shop_a.req('POST', '/api/customers/resolve', json={'phone': '9812345678', 'name': 'Rahul'})
+    r = shop_a.req('POST', '/api/customers/resolve', json={'phone': P_RAHUL, 'name': 'Rahul'})
     check('resolve creates customer', r.status_code == 200, r.text)
     rahul = r.json() if r.status_code == 200 else {}
     check('NM id assigned', bool(rahul.get('nm_id', '').startswith('NM-')), str(rahul.get('nm_id')))
 
-    r = shop_a.req('POST', '/api/customers/resolve', json={'phone': '9812345678', 'name': 'Rahul'})
+    r = shop_a.req('POST', '/api/customers/resolve', json={'phone': P_RAHUL, 'name': 'Rahul'})
     check('resolve idempotent by phone', r.status_code == 200 and r.json()['id'] == rahul.get('id'))
 
     idem = uuid.uuid4().hex
@@ -197,7 +213,7 @@ def main():
 
     print('== Cross-shop isolation (spec §101) ==')
     # Rahul linked only to shop A. Shop B cannot see him.
-    r = shop_b.req('GET', '/api/customers/search', params={'q': '9812345678'})
+    r = shop_b.req('GET', '/api/customers/search', params={'q': P_RAHUL})
     check('shop B search: no result', r.status_code == 200 and r.json() == [], r.text)
     r = shop_b.req('GET', f'/api/customers/{rahul["id"]}')
     check('shop B cannot open profile', r.status_code == 404, r.text)
@@ -216,7 +232,7 @@ def main():
     check('forged X-Shop-Id rejected', r.status_code == 403, r.text)
 
     # shop B makes its own Rahul purchase — customer sees both, shops see own only
-    r = shop_b.req('POST', '/api/customers/resolve', json={'phone': '9812345678', 'name': 'Rahul'})
+    r = shop_b.req('POST', '/api/customers/resolve', json={'phone': P_RAHUL, 'name': 'Rahul'})
     check('shop B resolves same global customer', r.status_code == 200 and
           r.json()['id'] == rahul['id'], r.text)
     r = shop_b.req('POST', '/api/sales', json={
@@ -226,7 +242,7 @@ def main():
     check('shop A sees only own credit', all(a['customer_id'] == rahul['id'] for a in r.json()['accounts']))
 
     print('== Customer portal (spec §38-45) ==')
-    cust, _ = otp_login('9812345678')
+    cust, _ = otp_login(P_RAHUL)
     r = cust.req('GET', '/api/customer/me')
     check('portal profiles found', r.status_code == 200 and len(r.json()['profiles']) >= 1, r.text)
     r = cust.req('GET', '/api/customer/overview')
@@ -251,22 +267,22 @@ def main():
         check('customer can read own bill', r2.status_code == 200, r2.text)
 
     # someone else's bill
-    other, _ = otp_login('9900112233')
+    other, _ = otp_login(P_OTHER)
     r = other.req('POST', '/api/auth/onboard/customer', json={'name': 'Imran'})
     r = other.req('GET', f'/api/customer/bills/{bill1["id"]}')
     check("other customer cannot read Rahul's bill", r.status_code == 404, r.text)
 
     print('== Staff roles (spec §53) ==')
-    r = shop_a.req('POST', '/api/auth/staff', json={'phone': '9700112233', 'role': 'cashier'})
+    r = shop_a.req('POST', '/api/auth/staff', json={'phone': P_CASHIER, 'role': 'cashier'})
     check('owner adds cashier', r.status_code == 200, r.text)
-    cashier, _ = otp_login('9700112233')
+    cashier, _ = otp_login(P_CASHIER)
     cashier.shop_id = shop_a.shop_id
     r = cashier.req('GET', '/api/dashboard/stats')
     check('cashier can view dashboard', r.status_code == 200, r.text)
     r = cashier.req('POST', '/api/sales', json={'mode': 'quick', 'amount': 120,
                                                 'payment_mode': 'cash'})
     check('cashier can bill (walk-in)', r.status_code == 200, r.text)
-    r = cashier.req('POST', '/api/auth/staff', json={'phone': '9600112233', 'role': 'cashier'})
+    r = cashier.req('POST', '/api/auth/staff', json={'phone': P_WRONG, 'role': 'cashier'})
     check('cashier cannot add staff', r.status_code == 403, r.text)
     r = cashier.req('PUT', '/api/loyalty/rules', json={'points_per_100': 5,
                                                        'redemption_value': 1})

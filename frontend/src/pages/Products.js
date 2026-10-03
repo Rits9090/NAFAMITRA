@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { toast } from 'sonner';
 import { Package, Plus, Search, Edit2, Trash2, X, AlertTriangle, TrendingUp } from 'lucide-react';
 import { PRODUCTS } from '@/constants/testIds';
+import api, { errMsg } from '@/lib/api';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const STOCK_STATUS = {
   in_stock: { label: 'In Stock', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
@@ -38,7 +37,7 @@ export default function Products() {
       const params = new URLSearchParams({ limit: 100 });
       if (search) params.append('search', search);
       if (categoryFilter) params.append('category', categoryFilter);
-      const { data } = await axios.get(`${API}/products?${params}`);
+      const { data } = await api.get(`/products?${params}`);
       setProducts(data.products || []);
       setTotal(data.total || 0);
     } finally {
@@ -47,7 +46,7 @@ export default function Products() {
   };
 
   const loadCategories = async () => {
-    const { data } = await axios.get(`${API}/products/categories`);
+    const { data } = await api.get(`/products/categories`);
     setCategories(data || []);
   };
 
@@ -63,10 +62,10 @@ export default function Products() {
     setSubmitting(true);
     try {
       if (editProduct) {
-        await axios.put(`${API}/products/${editProduct.id}`, form);
+        await api.put(`/products/${editProduct.id}`, form);
         toast.success('Product updated!');
       } else {
-        await axios.post(`${API}/products`, form);
+        await api.post(`/products`, form);
         toast.success(`${form.name} added!`);
       }
       setShowModal(false);
@@ -75,7 +74,7 @@ export default function Products() {
       loadProducts();
       loadCategories();
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to save product');
+      toast.error(errMsg(err, 'Failed to save product'));
     } finally {
       setSubmitting(false);
     }
@@ -83,7 +82,7 @@ export default function Products() {
 
   const handleDelete = async (p) => {
     if (!window.confirm(`Delete "${p.name}"?`)) return;
-    await axios.delete(`${API}/products/${p.id}`);
+    await api.delete(`/products/${p.id}`);
     toast.success('Product deleted');
     loadProducts();
   };

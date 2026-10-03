@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie, Legend } from 'recharts';
 import { BarChart2, TrendingUp, Users, Package, Download, Calendar } from 'lucide-react';
+import api from '@/lib/api';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const TABS = ['Sales', 'Products', 'Customers', 'Outstanding', 'Inventory'];
 const PERIOD_OPTIONS = [{ value: 'today', label: 'Today' }, { value: 'week', label: 'This Week' }, { value: 'month', label: 'This Month' }, { value: 'year', label: 'This Year' }];
 const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
@@ -24,19 +23,19 @@ export default function Reports() {
     setLoading(true);
     try {
       if (tab === 'Sales') {
-        const { data } = await axios.get(`${API}/reports/sales?period=${period}`);
+        const { data } = await api.get(`/reports/sales?period=${period}`);
         setSalesData(data);
       } else if (tab === 'Products') {
-        const { data } = await axios.get(`${API}/reports/products?period=${period}`);
+        const { data } = await api.get(`/reports/products?period=${period}`);
         setProductsData(data || []);
       } else if (tab === 'Customers') {
-        const { data } = await axios.get(`${API}/reports/customers`);
+        const { data } = await api.get(`/reports/customers`);
         setCustomersData(data);
       } else if (tab === 'Outstanding') {
-        const { data } = await axios.get(`${API}/reports/outstanding`);
+        const { data } = await api.get(`/reports/outstanding`);
         setOutstandingData(data);
       } else if (tab === 'Inventory') {
-        const { data } = await axios.get(`${API}/reports/inventory`);
+        const { data } = await api.get(`/reports/inventory`);
         setInventoryData(data);
       }
     } finally {

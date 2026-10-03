@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { toast } from 'sonner';
 import { Truck, Plus, X, ChevronRight, Package, IndianRupee } from 'lucide-react';
+import api, { errMsg } from '@/lib/api';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export default function Suppliers() {
   const [suppliers, setSuppliers] = useState([]);
@@ -19,7 +18,7 @@ export default function Suppliers() {
   const loadSuppliers = async () => {
     setLoading(true);
     try {
-      const { data } = await axios.get(`${API}/suppliers`);
+      const { data } = await api.get(`/suppliers`);
       setSuppliers(data || []);
     } finally {
       setLoading(false);
@@ -29,7 +28,7 @@ export default function Suppliers() {
   const openSupplier = async (s) => {
     setSelected(s);
     try {
-      const { data } = await axios.get(`${API}/suppliers/${s.id}`);
+      const { data } = await api.get(`/suppliers/${s.id}`);
       setSupplierDetail(data);
     } catch {}
   };
@@ -39,13 +38,13 @@ export default function Suppliers() {
     if (!form.name) return toast.error('Supplier name is required');
     setSubmitting(true);
     try {
-      await axios.post(`${API}/suppliers`, form);
+      await api.post(`/suppliers`, form);
       toast.success('Supplier added!');
       setShowAdd(false);
       setForm({ name: '', phone: '', email: '', address: '', gst_number: '' });
       loadSuppliers();
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed');
+      toast.error(errMsg(err, 'Failed'));
     } finally {
       setSubmitting(false);
     }

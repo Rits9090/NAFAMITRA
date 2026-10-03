@@ -314,6 +314,14 @@ async def _build_invoice(shop_id: str, actor: dict, payload: dict, mode: str) ->
                                   else (product or {}).get('selling_price', 0))
             if unit_price < 0:
                 raise AppError('Price cannot be negative.', 400, 'bad_price')
+            if product and product.get('min_selling_price') is not None:
+                min_paise = to_paise(product['min_selling_price'])
+                if settings['prevent_below_min'] and unit_price < min_paise:
+                    raise AppError(
+                        f"Below your safe selling price for {product['name']} "
+                        f"(₹{product['min_selling_price']}).",
+                        400, 'below_min_price',
+                        f"{product['name']}: तुमच्या सुरक्षित किमतीखाली (₹{product['min_selling_price']}) विक्री अवरोधली आहे.")
             discount = to_paise(raw.get('discount') or 0)
             line_total = apply_discount(unit_price * qty, discount)
             cost = to_paise((product or {}).get('purchase_price', 0)) * qty
