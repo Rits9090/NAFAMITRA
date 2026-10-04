@@ -7,7 +7,7 @@ import { fmt } from '@/lib/money';
 import { Gift, Save, Users, ScrollText, Lock } from 'lucide-react';
 
 export default function Loyalty() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { role } = useAuth();
   const [rules, setRules] = useState(null);
   const [balances, setBalances] = useState([]);
@@ -146,7 +146,7 @@ export default function Loyalty() {
                     {tx.customer?.name || '—'}
                     <span className="ml-2 text-[10px] font-bold uppercase text-slate-400">{tx.type}</span>
                   </p>
-                  <p className="text-[11px] text-slate-400">{tx.note || (tx.created_at ? new Date(tx.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '')}</p>
+                  <p className="text-[11px] text-slate-400">{tx.note || (tx.created_at ? dateTime(tx.created_at, lang) : '')}</p>
                 </div>
                 <span className={`text-sm font-bold font-mono flex-shrink-0 ${(tx.delta ?? tx.points) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                   {(tx.delta ?? tx.points) >= 0 ? '+' : ''}{tx.delta ?? tx.points}

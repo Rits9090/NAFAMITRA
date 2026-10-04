@@ -176,13 +176,36 @@ function OtpScreen({ phone, config, devOtpInitial, onBack, onSuccess }) {
   );
 }
 
+/* Two journeys, ONE application & auth infrastructure. The landing makes the
+   choice intentional; the shared OTP engine + identity resolution stay
+   exactly the same (one underlying person, authorized contexts). */
+const JOURNEYS = [
+  {
+    key: 'merchant', testid: 'role-merchant', icon: Store,
+    titleKey: 'auth.jOwnerTitle', subKey: 'auth.jOwnerSub',
+    loginKey: 'auth.loginAsOwner', signupKey: 'auth.createOwner',
+    loginTestid: 'journey-merchant-login', signupTestid: 'journey-merchant-signup',
+    tone: 'emerald',
+  },
+  {
+    key: 'customer', testid: 'role-customer', icon: User,
+    titleKey: 'auth.jCustTitle', subKey: 'auth.jCustSub',
+    loginKey: 'auth.loginAsCustomer', signupKey: 'auth.createCustomer',
+    loginTestid: 'journey-customer-login', signupTestid: 'journey-customer-signup',
+    tone: 'slate',
+  },
+];
+
 export default function Login() {
   const { t } = useI18n();
   const { verifyOtp, requestOtp, token, loading: authLoading, kind, identities } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [config, setConfig] = useState(null);
-  const [intent, setIntent] = useState(params.get('as') === 'customer' ? 'customer' : 'merchant');
+  const intentParam = params.get('as') === 'customer' ? 'customer' : null;
+  const [view, setView] = useState(intentParam ? 'form' : 'journey'); // journey | form
+  const [intent, setIntent] = useState(intentParam || 'merchant');
+  const [mode, setMode] = useState('login'); // login | signup
   const [step, setStep] = useState('phone'); // phone | otp
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
@@ -205,6 +228,7 @@ export default function Login() {
     const shops = idt?.shops || [];
     const profiles = idt?.customer_profiles || [];
     if (idt.kind === 'new' || (!shops.length && !profiles.length)) {
+      // signup lands in the matching onboarding — never the other journey's form
       navigate(`/onboarding?intent=${chosenIntent}`, { replace: true });
     } else if (idt.kind === 'both') {
       // dual identity: honour the contextual entry card, switcher available later
@@ -214,6 +238,15 @@ export default function Login() {
     } else {
       navigate('/c', { replace: true });
     }
+  };
+
+  const startJourney = (journeyKey, journeyMode) => {
+    setIntent(journeyKey);
+    setMode(journeyMode);
+    setView('form');
+    setStep('phone');
+    setError(null);
+    setTimeout(() => phoneRef.current?.focus(), 50);
   };
 
   const sendOtp = async (e) => {
@@ -241,7 +274,7 @@ export default function Login() {
   };
 
   const onSuccess = (result) => {
-    track(ACTIVATION.LOGIN, { intent });
+    track(ACTIVATION.LOGIN, { intent, mode });
     routeByIdentities(result.identities, intent);
   };
 
@@ -266,6 +299,12 @@ export default function Login() {
         { icon: ShieldCheck, title: t('auth.c3Title'), sub: t('auth.c3Sub') },
       ];
 
+  const formTitle = view === 'form'
+    ? (intent === 'customer'
+        ? (mode === 'signup' ? t('auth.createCustomer') : t('auth.customerWelcomeBack'))
+        : t('auth.loginAsOwner'))
+    : '';
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-white to-amber-50/40 flex flex-col">
       <header className="px-4 pt-4 flex justify-center">
@@ -279,101 +318,142 @@ export default function Login() {
             <Store className="w-7 h-7 text-white" aria-hidden="true" />
           </div>
           <h1 className="mt-3 text-3xl font-extrabold text-slate-800 tracking-tight" style={{ fontFamily: 'Outfit,sans-serif' }}>
-            NafaMitra
+            {view === 'journey' ? t('auth.welcome') : 'NafaMitra'}
           </h1>
           <p className="text-sm font-semibold text-emerald-700 mt-1">{t('brand.tagline')}</p>
           <p className="text-[11px] text-slate-400 mt-0.5">{t('brand.meaning')}</p>
         </div>
 
-        {/* Role / context cards */}
-        <div className="grid grid-cols-2 gap-2.5 mb-4" role="radiogroup" aria-label={t('onboarding.whatWouldYou')}>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={intent === 'merchant'}
-            data-testid="role-merchant"
-            onClick={() => setIntent('merchant')}
-            className={`text-left rounded-xl border-2 p-3 transition-all ${
-              intent === 'merchant'
-                ? 'border-emerald-500 bg-emerald-50 shadow-sm'
-                : 'border-slate-200 bg-white hover:border-emerald-300'
-            }`}
-          >
-            <Store className={`w-5 h-5 mb-1 ${intent === 'merchant' ? 'text-emerald-600' : 'text-slate-400'}`} />
-            <p className="text-sm font-bold text-slate-800">{t('auth.iAmShop')}</p>
-            <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{t('auth.iAmShopSub')}</p>
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={intent === 'customer'}
-            data-testid="role-customer"
-            onClick={() => setIntent('customer')}
-            className={`text-left rounded-xl border-2 p-3 transition-all ${
-              intent === 'customer'
-                ? 'border-emerald-500 bg-emerald-50 shadow-sm'
-                : 'border-slate-200 bg-white hover:border-emerald-300'
-            }`}
-          >
-            <User className={`w-5 h-5 mb-1 ${intent === 'customer' ? 'text-emerald-600' : 'text-slate-400'}`} />
-            <p className="text-sm font-bold text-slate-800">{t('auth.iAmCustomer')}</p>
-            <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{t('auth.iAmCustomerSub')}</p>
-          </button>
-        </div>
-
-        {/* Phone / OTP card — visually dominant */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5" data-testid="login-card">
-          {step === 'phone' ? (
-            <form onSubmit={sendOtp} data-testid="phone-form" className="space-y-3">
-              <label htmlFor="phone-input" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                {t('auth.enterPhone')}
-              </label>
-              <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm select-none">+91</span>
-                <input
-                  id="phone-input"
-                  ref={phoneRef}
-                  data-testid="phone-input"
-                  type="tel"
-                  inputMode="tel"
-                  autoComplete="tel-national"
-                  maxLength={12}
-                  value={phone}
-                  onChange={(e) => { setPhone(e.target.value); setError(null); }}
-                  placeholder={t('auth.phonePlaceholder')}
-                  aria-invalid={!!error}
-                  className="w-full pl-14 pr-4 py-4 text-lg font-semibold rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-400"
-                />
-              </div>
-              {error && (
-                <div role="alert" data-testid="phone-error" className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
-                  {error}
+        {view === 'journey' ? (
+          /* ---- Landing: two visually distinct journeys ---- */
+          <div className="space-y-3" data-testid="journey-landing">
+            {JOURNEYS.map((j) => {
+              const Icon = j.icon;
+              const isOwner = j.key === 'merchant';
+              return (
+                <div
+                  key={j.key}
+                  data-testid={j.testid}
+                  className={`rounded-2xl border-2 p-4 shadow-sm ${
+                    isOwner
+                      ? 'border-emerald-500 bg-emerald-50/70'
+                      : 'border-slate-300 bg-white'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                      isOwner ? 'bg-emerald-600' : 'bg-slate-700'
+                    }`}>
+                      <Icon className="w-6 h-6 text-white" aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-base font-extrabold text-slate-800">{t(j.titleKey)}</p>
+                      <p className="text-xs text-slate-500 mt-0.5 leading-snug">{t(j.subKey)}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    <button
+                      type="button"
+                      data-testid={j.loginTestid}
+                      onClick={() => startJourney(j.key, 'login')}
+                      className={`py-2.5 rounded-xl text-[13px] font-bold transition-colors ${
+                        isOwner
+                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                          : 'bg-slate-800 hover:bg-slate-900 text-white'
+                      }`}
+                    >
+                      {t(j.loginKey)}
+                    </button>
+                    <button
+                      type="button"
+                      data-testid={j.signupTestid}
+                      onClick={() => startJourney(j.key, 'signup')}
+                      className={`py-2.5 rounded-xl text-[13px] font-bold border-2 transition-colors ${
+                        isOwner
+                          ? 'border-emerald-600 text-emerald-700 hover:bg-emerald-50'
+                          : 'border-slate-400 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {t(j.signupKey)}
+                    </button>
+                  </div>
                 </div>
+              );
+            })}
+            <p className="text-[11px] text-slate-400 text-center px-2 leading-snug">
+              {t('auth.journeyNote')}
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* ---- Selected journey: shared OTP engine ---- */}
+            <button
+              type="button"
+              onClick={() => { setView('journey'); setStep('phone'); setError(null); }}
+              className="self-start flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-3"
+              data-testid="back-to-journey"
+            >
+              <ChevronLeft className="w-4 h-4" /> {t('auth.changeJourney')}
+            </button>
+
+            <p className="text-lg font-extrabold text-slate-800 mb-3" data-testid="journey-title">
+              {formTitle}
+            </p>
+
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5" data-testid="login-card">
+              {step === 'phone' ? (
+                <form onSubmit={sendOtp} data-testid="phone-form" className="space-y-3">
+                  <label htmlFor="phone-input" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    {t('auth.enterPhone')}
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm select-none">+91</span>
+                    <input
+                      id="phone-input"
+                      ref={phoneRef}
+                      data-testid="phone-input"
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel-national"
+                      maxLength={12}
+                      value={phone}
+                      onChange={(e) => { setPhone(e.target.value); setError(null); }}
+                      placeholder={t('auth.phonePlaceholder')}
+                      aria-invalid={!!error}
+                      className="w-full pl-14 pr-4 py-4 text-lg font-semibold rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-400"
+                    />
+                  </div>
+                  {error && (
+                    <div role="alert" data-testid="phone-error" className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+                      {error}
+                    </div>
+                  )}
+                  <button
+                    type="submit"
+                    data-testid="send-otp"
+                    disabled={loading}
+                    className="w-full py-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-base transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {loading ? (
+                      <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>{t('auth.sendOtp')} <ArrowRight className="w-4 h-4" /></>
+                    )}
+                  </button>
+                  <p className="text-[11px] text-slate-400 text-center">{t('auth.alreadyHaveAccount')}</p>
+                </form>
+              ) : (
+                <OtpScreen
+                  phone={phone}
+                  config={config}
+                  devOtpInitial={devOtp}
+                  onBack={() => { setStep('phone'); setError(null); }}
+                  onSuccess={onSuccess}
+                />
               )}
-              <button
-                type="submit"
-                data-testid="send-otp"
-                disabled={loading}
-                className="w-full py-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-base transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <>{t('auth.sendOtp')} <ArrowRight className="w-4 h-4" /></>
-                )}
-              </button>
-              <p className="text-[11px] text-slate-400 text-center">{t('auth.alreadyHaveAccount')}</p>
-            </form>
-          ) : (
-            <OtpScreen
-              phone={phone}
-              config={config}
-              devOtpInitial={devOtp}
-              onBack={() => { setStep('phone'); setError(null); }}
-              onSuccess={onSuccess}
-            />
-          )}
-        </div>
+            </div>
+          </>
+        )}
 
         {/* Value highlights (compact) */}
         <div className="mt-4 space-y-2" data-testid="value-highlights">

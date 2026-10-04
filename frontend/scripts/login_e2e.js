@@ -64,7 +64,11 @@ const setInput = (win, el, val) => {
     return null;
   };
 
-  console.log('step1: waiting phone screen...');
+  console.log('step1: waiting journey landing...');
+  const journeyBtn = await wait('[data-testid="journey-merchant-login"]');
+  if (!journeyBtn) { console.log('FAIL: no journey landing'); console.log(doc.body.textContent.slice(0, 300)); process.exit(1); }
+  journeyBtn.click();
+  console.log('step1b: entered Shop Owner journey');
   const phone = await wait('[data-testid="phone-input"]');
   if (!phone) { console.log('FAIL: no phone input'); console.log(doc.body.textContent.slice(0, 300)); process.exit(1); }
 

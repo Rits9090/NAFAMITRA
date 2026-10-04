@@ -14,7 +14,7 @@ const STATUS_META = {
 
 /** Retailer view of customer requirements — demand signal, no fake ordering. */
 export default function Requirements() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -119,7 +119,7 @@ export default function Requirements() {
                 </div>
                 <div>
                   <p className="text-sm font-bold text-slate-800">{r.customer_name || r.customer_nm_id || t('reqm.customer')}</p>
-                  <p className="text-[10px] text-slate-400">{r.customer_nm_id || ''} · {new Date(r.created_at).toLocaleDateString()}</p>
+                  <p className="text-[10px] text-slate-400">{r.customer_nm_id || ''} · {shortDate(r.created_at, lang)}</p>
                 </div>
               </div>
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${meta.cls}`}>{t(meta.labelKey)}</span>

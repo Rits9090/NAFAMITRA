@@ -12,7 +12,7 @@ import { Inbox, ChevronLeft, Share2, Link2, Gift, Wallet, ScrollText, Repeat2, L
  * Never fakes an order: copy says a requirement was posted, not purchased.
  */
 export function useReorder() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [busy, setBusy] = useState(null);
   const reorder = async (bill) => {
     setBusy(bill.id);
@@ -41,7 +41,7 @@ export function useReorder() {
 }
 
 export function CustomerBills() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { reorder, busy } = useReorder();
   const [bills, setBills] = useState(null);
   const [error, setError] = useState(null);
@@ -82,7 +82,7 @@ export function CustomerBills() {
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-slate-700 truncate">{b.shop_name}</p>
                 <p className="text-[11px] text-slate-400">
-                  {b.invoice_number} · {b.created_at ? new Date(b.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
+                  {b.invoice_number} · {b.created_at ? shortDate(b.created_at, lang) : ''}
                 </p>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
@@ -108,7 +108,7 @@ export function CustomerBills() {
 
 export function CustomerBillDetail() {
   const { id } = useParams();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const navigate = useNavigate();
   const [bill, setBill] = useState(null);
   const [error, setError] = useState(null);
@@ -176,7 +176,7 @@ export function CustomerBillDetail() {
 }
 
 export function CustomerLoyalty() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [accounts, setAccounts] = useState(null);
   const [error, setError] = useState(null);
   const [openShop, setOpenShop] = useState(null);
@@ -226,7 +226,7 @@ export function CustomerLoyalty() {
                 <div key={tx.id} className="flex items-center justify-between text-sm">
                   <div className="min-w-0">
                     <p className="text-[11px] font-bold uppercase text-slate-400">{tx.type}</p>
-                    <p className="text-xs text-slate-500 truncate">{tx.note || (tx.created_at ? new Date(tx.created_at).toLocaleDateString('en-IN') : '')}</p>
+                    <p className="text-xs text-slate-500 truncate">{tx.note || (tx.created_at ? shortDate(tx.created_at, lang) : '')}</p>
                   </div>
                   <span className={`font-mono font-bold ${(tx.delta ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                     {(tx.delta ?? 0) >= 0 ? '+' : ''}{tx.delta ?? tx.points}
@@ -242,7 +242,7 @@ export function CustomerLoyalty() {
 }
 
 export function CustomerCredit() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [accounts, setAccounts] = useState(null);
   const [error, setError] = useState(null);
   const [openShop, setOpenShop] = useState(null);
@@ -289,7 +289,7 @@ export function CustomerCredit() {
                 <div key={tx.id} className="flex items-center justify-between text-sm">
                   <div>
                     <p className="text-[11px] font-bold uppercase text-slate-400">{tx.type}</p>
-                    <p className="text-xs text-slate-500">{tx.note || (tx.created_at ? new Date(tx.created_at).toLocaleDateString('en-IN') : '')}</p>
+                    <p className="text-xs text-slate-500">{tx.note || (tx.created_at ? shortDate(tx.created_at, lang) : '')}</p>
                   </div>
                   <span className={`font-mono font-bold ${tx.delta_paise > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                     {tx.delta_paise > 0 ? '+' : ''}{fmt(tx.delta_paise || 0)}

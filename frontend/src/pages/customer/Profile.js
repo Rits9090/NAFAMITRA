@@ -112,9 +112,12 @@ export function CustomerProfile() {
       {/* Quick links — Account is the hub for everything not in the 5 tabs */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm divide-y divide-slate-50">
         {[
+          { to: '/c/stores', labelKey: 'stores.title', icon: '🏪' },
+          { to: '/c/brain', labelKey: 'brain.askTitle', icon: '✨' },
           { to: '/c/notifications', labelKey: 'nav.notifications', icon: '🔔' },
           { to: '/c/credit', labelKey: 'nav.credit', icon: '₹' },
           { to: '/c/loyalty', labelKey: 'nav.loyalty', icon: '🪙' },
+          { to: '/c/search', labelKey: 'search.tabReqs', icon: '📋' },
           { to: '/c/search', labelKey: 'search.tabShops', icon: '⭐' },
         ].map(({ to, labelKey, icon }) => (
           <button key={to} onClick={() => navigate(to)}
@@ -123,6 +126,17 @@ export function CustomerProfile() {
             <span className="text-slate-300">›</span>
           </button>
         ))}
+      </div>
+
+      {/* Privacy & data control (§55) */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4" data-testid="privacy-card">
+        <p className="text-sm font-bold text-slate-700">{t('privacy.title')}</p>
+        <ul className="mt-1.5 space-y-1 text-[11px] text-slate-500 leading-relaxed">
+          <li>{t('privacy.line1')}</li>
+          <li>{t('privacy.line2')}</li>
+          <li>{t('privacy.line3')}</li>
+        </ul>
+        <p className="text-[10px] text-slate-400 mt-2">{t('privacy.marketingNote')}</p>
       </div>
 
       {/* language */}

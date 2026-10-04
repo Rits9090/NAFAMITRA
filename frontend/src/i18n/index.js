@@ -7,6 +7,9 @@ const DICTS = { mr, en, hi };
 const STORAGE_KEY = 'nafamitra_lang';
 const DEFAULT_LANG = 'mr';
 
+// For date/number rendering — keeps month names in the chosen language.
+export const LANG_LOCALES = { mr: 'mr-IN', en: 'en-IN', hi: 'hi-IN' };
+
 const I18nContext = createContext({
   // Safe default: if the provider is missing, render the key instead of
   // crashing with "t is not a function".

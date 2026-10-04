@@ -34,6 +34,9 @@ from routes.requirements_routes import router as requirements_router
 from routes.favorites_routes import router as favorites_router
 from routes.notify_routes import router as notify_router
 from routes.retailer_actions import router as actions_router
+from routes.my_stores_routes import router as mystores_router
+from routes.customer_finance_routes import router as finance_router
+from routes.brain_routes import router as brain_router
 
 api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
 api_router.include_router(dashboard_router, prefix="/dashboard", tags=["dashboard"])
@@ -51,6 +54,9 @@ api_router.include_router(requirements_router, prefix="/requirements", tags=["re
 api_router.include_router(favorites_router, prefix="/favorites", tags=["favorites"])
 api_router.include_router(notify_router, prefix="/notifications", tags=["notifications"])
 api_router.include_router(actions_router, prefix="/retailer", tags=["retailer"])
+api_router.include_router(mystores_router, prefix="/mystores", tags=["my-stores"])
+api_router.include_router(finance_router, prefix="/customer", tags=["customer-finance"])
+api_router.include_router(brain_router, prefix="/customer/brain", tags=["nafa-brain"])
 api_router.include_router(analytics_router)
 api_router.include_router(admin_analytics_router)
 

@@ -102,6 +102,16 @@ async def ensure_indexes() -> None:
     await db.notification_prefs.create_index('customer_id', unique=True)
     await db.favorites.create_index([('customer_id', 1), ('shop_id', 1)], unique=True)
 
+    # --- my stores / goals / expenses / settings / entitlements ------------
+    await db.my_stores.create_index([('customer_id', 1), ('created_at', -1)])
+    await db.my_stores.create_index('matched_shop_id', sparse=True)
+    await db.my_stores.create_index('phone_normalized', sparse=True)
+    await db.customer_goals.create_index([('customer_id', 1), ('created_at', -1)])
+    await db.customer_expenses.create_index([('customer_id', 1), ('date', -1)])
+    await db.customer_settings.create_index('customer_id', unique=True)
+    await db.entitlements.create_index([('customer_id', 1), ('code', 1)], unique=True)
+    await db.entitlements.create_index([('customer_id', 1), ('expires_at', 1)])
+
     # --- legacy collections ------------------------------------------------
     await db.sales.create_index([('business_id', 1), ('created_at', -1)])
     await db.products.create_index([('business_id', 1), ('name', 1)])

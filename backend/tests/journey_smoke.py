@@ -376,6 +376,139 @@ def main():
     r = bare.get(BASE + '/notifications', timeout=10)
     check('notifications need auth', r.status_code == 401, r.status_code)
 
+    # ------------------------------------------------------------------
+    print('== 21. Customer upgrade: My Stores, goals, brain, entitlement (P2) ==')
+    c1 = Session()
+    phonec = '7' + str(int(time.time() * 10) % 1000000000).zfill(9)
+    r = c1.req('POST', '/auth/request-otp', json={'phone': phonec})
+    otpc = r.json().get('dev_otp') if r.status_code == 200 else None
+    r = c1.req('POST', '/auth/verify-otp', json={'phone': phonec, 'code': otpc})
+    check('customer login', r.status_code == 200, r.text)
+    if r.status_code == 200:
+        c1.token = r.json()['token']
+    r = c1.req('POST', '/auth/onboard/customer', json={'name': 'Journey Customer'})
+    nm_id = None
+    if r.status_code == 200:
+        nm_id = (r.json().get('identities', {}).get('customer_profiles') or [{}])[0].get('nm_id')
+    check('customer onboard + NM id', r.status_code == 200 and str(nm_id or '').startswith('NM-'), r.text)
+
+    # goals / saving target / expenses
+    r = c1.req('POST', '/customer/goals', json={
+        'name': 'Bike', 'target_paise': 8000000, 'progress_paise': 1800000})
+    check('goal created 22.5%', r.status_code == 200 and r.json()['goal']['percent'] == 22.5, r.text)
+    r = c1.req('PUT', '/customer/saving-target', json={'target_paise': 200000})
+    check('saving target set', r.status_code == 200 and r.json()['saving_target_paise'] == 200000, r.text)
+    r = c1.req('POST', '/customer/expenses', json={
+        'title': 'Rent', 'amount_paise': 700000, 'category': 'rent'})
+    check('expense source customer_added',
+          r.status_code == 200 and r.json()['expense']['source'] == 'customer_added', r.text)
+    r = c1.req('GET', '/customer/expenses')
+    check('expense listed w/ source label',
+          r.status_code == 200 and r.json()['source'] == 'customer_added'
+          and r.json()['total_paise'] == 700000, r.text)
+
+    # my stores → 5-store premium entitlement, idempotent
+    granted = None
+    for i in range(5):
+        r = c1.req('POST', '/mystores', json={'name': f'Journey Store {i}', 'category': 'grocery'})
+        check(f'mystore {i} added', r.status_code == 200, r.text)
+        granted = r.json().get('activation', {}) if r.status_code == 200 else granted
+    check('5 stores qualified', granted and granted['qualified'] and granted['claimed'], granted)
+    check('premium granted now', granted and granted.get('granted_now') is True, granted)
+    r = c1.req('POST', '/mystores', json={'name': 'Sixth Store'})
+    act = r.json().get('activation', {}) if r.status_code == 200 else {}
+    check('entitlement idempotent (no double grant)',
+          r.status_code == 200 and act.get('granted_now') is False
+          and len([e for e in act.get('entitlements', []) if e.get('code') == 'premium_stores5_30d']) == 1,
+          act)
+    r = c1.req('GET', '/mystores/activation')
+    check('activation endpoint', r.status_code == 200 and r.json()['count'] == 6, r.text)
+
+    # nafa summary + brain (controlled tools, disclosure)
+    r = c1.req('GET', '/customer/nafa-summary')
+    ok = r.status_code == 200
+    if ok:
+        s = r.json()
+        ok = (s['known_spending']['partial'] is True
+              and s['known_spending']['source'] == 'nafamitra_recorded'
+              and s['stores']['my_count'] == 6
+              and len(s['goals']) == 1
+              and any(e.get('code') == 'premium_stores5_30d' for e in s['entitlements']))
+    check('nafa-summary labels + entitlement', ok, r.text[:200])
+    r = c1.req('POST', '/customer/brain/chat', json={'message': 'माझा खर्च किती झाला?'})
+    check('brain spending intent', r.status_code == 200 and r.json()['intent'] == 'spending'
+          and r.json()['reply_key'] == 'brain.tSpending', r.text[:200])
+    r = c1.req('POST', '/customer/brain/chat', json={'message': 'माझा Bike Goal किती पुढे आहे?'})
+    ok = r.status_code == 200 and r.json()['intent'] == 'goals'
+    if ok:
+        g = r.json()['data']['goals'][0]
+        ok = g['percent'] == 22.5 and g['target_paise'] == 8000000
+    check('brain goal progress from data', ok, r.text[:200])
+
+    # requirement with new structured fields
+    r = c1.req('POST', '/requirements', json={
+        'title': 'Blue L shirt', 'notes': 'Blue, L size, for Rahul',
+        'items': [{'name': 'shirt', 'qty': 1, 'color': 'Blue', 'size': 'L'}]})
+    check('requirement notes/color/size', r.status_code == 200, r.text)
+    req2_id = r.json().get('requirement', {}).get('id') if r.status_code == 200 else None
+    r = c1.req('GET', '/requirements')
+    check('requirement echoes notes',
+          r.status_code == 200 and any(
+              x.get('id') == req2_id and x.get('notes') == 'Blue, L size, for Rahul'
+              for x in r.json().get('requirements', [])), r.text[:200])
+
+    # cross-customer isolation (goals / stores / summary)
+    c2 = Session()
+    phonec2 = '6' + str(int(time.time() * 10) % 1000000000).zfill(9)
+    r = c2.req('POST', '/auth/request-otp', json={'phone': phonec2})
+    otpc2 = r.json().get('dev_otp') if r.status_code == 200 else None
+    r = c2.req('POST', '/auth/verify-otp', json={'phone': phonec2, 'code': otpc2})
+    if r.status_code == 200:
+        c2.token = r.json()['token']
+    r = c2.req('POST', '/auth/onboard/customer', json={'name': 'Other Customer'})
+    check('second customer onboard', r.status_code == 200, r.text)
+    r = c2.req('GET', '/customer/goals')
+    check('goals isolated', r.status_code == 200 and r.json()['goals'] == [], r.text)
+    r = c2.req('GET', '/mystores')
+    check('mystores isolated', r.status_code == 200 and r.json()['stores'] == []
+          and r.json()['activation'].get('claimed') is False, r.text)
+    r = c2.req('GET', '/customer/nafa-summary')
+    check('summary isolated', r.status_code == 200
+          and r.json()['known_spending']['total_paise'] == 0, r.text)
+    r = c2.req('DELETE', f'/customer/goals/{(c1.req("GET", "/customer/goals").json()["goals"])[0]["id"]}')
+    check('cross-customer goal delete blocked', r.status_code in (401, 403, 404), r.status_code)
+
+    # unauthorized access to all new surfaces
+    for path in ('/mystores', '/customer/goals', '/customer/settings',
+                 '/customer/expenses', '/customer/nafa-summary'):
+        r = bare.get(BASE + path, timeout=10)
+        check(f'{path} needs auth', r.status_code == 401, r.status_code)
+    r = bare.post(BASE + '/customer/brain/chat', json={'message': 'hi'}, timeout=10)
+    check('brain POST needs auth', r.status_code == 401, r.status_code)
+
+    # retailer demand signal: aggregate only, no PII
+    r = m.req('GET', '/mystores/demand-signals')
+    ok = r.status_code == 200
+    if ok:
+        d = r.json()
+        ok = d.get('scope') == 'aggregate_only' and isinstance(d.get('interest_count'), int)
+        ok = ok and not any(k in d for k in ('customers', 'phones', 'names'))
+    check('demand signal aggregate-only', ok, r.text[:200])
+
+    # merchant onboarding accepts explicit address (spec §6)
+    m4 = Session()
+    phone4 = '9' + str(int(time.time() * 100) % 1000000000).zfill(9)
+    r = m4.req('POST', '/auth/request-otp', json={'phone': phone4})
+    otp4 = r.json().get('dev_otp') if r.status_code == 200 else None
+    r = m4.req('POST', '/auth/verify-otp', json={'phone': phone4, 'code': otp4})
+    if r.status_code == 200:
+        m4.token = r.json()['token']
+    r = m4.req('POST', '/auth/onboard/shop', json={
+        'owner_name': 'Address Owner', 'shop_name': 'Address Shop',
+        'category': 'kirana', 'address': 'Shop 4, MG Road', 'location': 'Pune'})
+    check('owner signup with address',
+          r.status_code == 200 and r.json()['shop'].get('address') == 'Shop 4, MG Road', r.text[:200])
+
     print(f'\n{"=" * 50}\nPASSED: {len(PASS)}   FAILED: {len(FAIL)}')
     for name, extra in FAIL:
         print(f'  FAIL {name}: {extra}')

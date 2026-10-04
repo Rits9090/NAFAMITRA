@@ -29,7 +29,7 @@ function timeAgo(iso, t) {
 
 export default function Dashboard() {
   const { user, activeShop } = useAuth();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [recent, setRecent] = useState([]);
@@ -141,7 +141,7 @@ export default function Dashboard() {
           <p className="text-sm text-slate-500 truncate">{activeShop?.name}</p>
         </div>
         <div className="text-right text-xs text-slate-400 hidden sm:block">
-          {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
+          {longDate(new Date(), lang)}
         </div>
       </div>
 

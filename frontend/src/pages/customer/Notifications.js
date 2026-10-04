@@ -16,7 +16,7 @@ const CATS = [
 const PREF_CATS = CATS.filter((c) => c.id !== 'marketing');
 
 export default function CustomerNotifications() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [items, setItems] = useState([]);
@@ -131,7 +131,7 @@ export default function CustomerNotifications() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-slate-800 truncate">{renderTitle(n)}</p>
                   <p className="text-[11px] text-slate-400">
-                    {t(meta.labelKey)}{n.shop_name ? ` · ${n.shop_name}` : ''} · {new Date(n.created_at).toLocaleString()}
+                    {t(meta.labelKey)}{n.shop_name ? ` · ${n.shop_name}` : ''} · {dateTime(n.created_at, lang)}
                   </p>
                 </div>
                 {!n.read_at && <span className="w-2 h-2 rounded-full bg-emerald-500 mt-2 flex-shrink-0" aria-label={t('notif.unread', { n: '1' })} />}

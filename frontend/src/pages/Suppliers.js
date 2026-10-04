@@ -6,7 +6,7 @@ import { useI18n } from '@/i18n';
 
 
 export default function Suppliers() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -124,7 +124,7 @@ export default function Suppliers() {
                       <div key={p.id} className="flex items-center justify-between bg-slate-50 rounded-xl p-3">
                         <div>
                           <p className="text-sm font-semibold text-slate-700">{t('sup.items', { n: String(p.items?.length || 0) })}</p>
-                          <p className="text-xs text-slate-400">{new Date(p.created_at).toLocaleDateString('en-IN')} · {p.payment_mode}</p>
+                          <p className="text-xs text-slate-400">{shortDate(p.created_at, lang)} · {p.payment_mode}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-sm font-bold font-mono text-slate-700">{fmt(p.total_amount)}</p>

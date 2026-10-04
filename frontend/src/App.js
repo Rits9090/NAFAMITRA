@@ -35,6 +35,8 @@ const CustomerProfile = lazy(() => import('@/pages/customer/Profile').then((m) =
 const PassbookEntry = lazy(() => import('@/pages/customer/Profile').then((m) => ({ default: m.PassbookEntry })));
 const CustomerSearch = lazy(() => import('@/pages/customer/Search'));
 const CustomerMyNafa = lazy(() => import('@/pages/customer/MyNafa'));
+const CustomerMyStores = lazy(() => import('@/pages/customer/MyStores'));
+const CustomerBrain = lazy(() => import('@/pages/customer/Brain'));
 const CustomerNotifications = lazy(() => import('@/pages/customer/Notifications'));
 const MerchantRequirements = lazy(() => import('@/pages/Requirements'));
 const PublicReceipt = lazy(() => import('@/pages/PublicReceipt'));
@@ -133,6 +135,9 @@ function AppRoutes() {
           <Route path="nafa" element={<CustomerMyNafa />} />
           <Route path="notifications" element={<CustomerNotifications />} />
           <Route path="profile" element={<CustomerProfile />} />
+          <Route path="stores" element={<CustomerMyStores />} />
+          <Route path="stores/:storeId" element={<CustomerMyStores />} />
+          <Route path="brain" element={<CustomerBrain />} />
         </Route>
 
         <Route path="/home" element={<HomeRedirect />} />

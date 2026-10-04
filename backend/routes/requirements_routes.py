@@ -32,6 +32,8 @@ class ItemIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     qty: int = Field(default=1, ge=1, le=10000)
     unit: str = Field(default='unit', max_length=20)
+    color: str | None = Field(default=None, max_length=40)
+    size: str | None = Field(default=None, max_length=40)
 
 
 class RequirementIn(BaseModel):
@@ -42,6 +44,8 @@ class RequirementIn(BaseModel):
     category: Optional[str] = Field(default=None, max_length=60)
     shop_id: Optional[str] = Field(default=None, max_length=64)
     source: str = 'manual'
+    # free-form structured detail: colour / size / intended user etc.
+    notes: Optional[str] = Field(default=None, max_length=500)
 
 
 class RequirementUpdate(BaseModel):
@@ -103,6 +107,7 @@ async def create_requirement(req: RequirementIn, payload: dict = Depends(require
         'budget_paise': req.budget_paise,
         'need_by': req.need_by,
         'category': req.category,
+        'notes': req.notes,
         'status': 'open',
         'source': req.source,
         'retailer_notes': None,

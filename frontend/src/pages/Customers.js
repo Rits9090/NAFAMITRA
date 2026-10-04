@@ -21,7 +21,7 @@ const SEGMENTS = [
 ];
 
 function NewCustomerForm({ onClose, onCreated, initial = {} }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [form, setForm] = useState({ name: initial.name || '', phone: initial.phone || '', notes: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -78,7 +78,7 @@ function NewCustomerForm({ onClose, onCreated, initial = {} }) {
 }
 
 export function CustomersList() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [customers, setCustomers] = useState([]);
@@ -217,7 +217,7 @@ const TABS = [
 
 export function CustomerDetail() {
   const { id } = useParams();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const navigate = useNavigate();
   const [tab, setTab] = useState('overview');
   const [data, setData] = useState(null);
@@ -259,7 +259,7 @@ export function CustomerDetail() {
   }
 
   const c = data.customer;
-  const since = c.customer_since ? new Date(c.customer_since).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : t('customers.never');
+  const since = c.customer_since ? shortDate(c.customer_since, lang) : t('customers.never');
 
   return (
     <div className="max-w-2xl mx-auto space-y-4 animate-fadeInUp">
@@ -313,7 +313,7 @@ export function CustomerDetail() {
           <InfoRow icon={ShoppingBag} label={t('customers.purchases')} value={String(c.purchase_count || 0)} />
           <InfoRow icon={User} label={t('customers.avgBill')} value={fmt(c.avg_bill_paise || 0)} />
           <InfoRow icon={CreditCard} label={t('customers.lastPurchase')}
-            value={c.last_purchase_at ? new Date(c.last_purchase_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : t('customers.never')} />
+            value={c.last_purchase_at ? shortDate(c.last_purchase_at, lang) : t('customers.never')} />
           <InfoRow icon={Gift} label={t('customers.dhanlabhTab')} value={`${c.loyalty_points || 0} 🪙`} />
         </div>
       )}
@@ -328,7 +328,7 @@ export function CustomerDetail() {
               className="bg-white border border-slate-100 rounded-xl px-4 py-3 flex items-center justify-between hover:border-emerald-200">
               <div>
                 <p className="text-sm font-semibold text-slate-700">{b.invoice_number}</p>
-                <p className="text-[11px] text-slate-400">{b.created_at ? new Date(b.created_at).toLocaleDateString('en-IN') : ''}</p>
+                <p className="text-[11px] text-slate-400">{b.created_at ? shortDate(b.created_at, lang) : ''}</p>
               </div>
               <span className={`text-sm font-bold font-mono ${b.status === 'VOIDED' ? 'text-red-500 line-through' : 'text-slate-800'}`}>
                 {fmt(b.total_paise || 0)}
@@ -339,7 +339,7 @@ export function CustomerDetail() {
             <div key={s.id} className="bg-white border border-slate-100 rounded-xl px-4 py-3 flex items-center justify-between">
               <div>
                 <p className="text-sm font-semibold text-slate-700">{s.invoice_number}</p>
-                <p className="text-[11px] text-slate-400">{s.created_at ? new Date(s.created_at).toLocaleDateString('en-IN') : ''}</p>
+                <p className="text-[11px] text-slate-400">{s.created_at ? shortDate(s.created_at, lang) : ''}</p>
               </div>
               <span className="text-sm font-bold font-mono text-slate-800">₹{Number(s.total_amount || 0).toFixed(0)}</span>
             </div>
@@ -360,7 +360,7 @@ export function CustomerDetail() {
               <div key={tx.id} className="flex items-center justify-between text-sm py-1.5 border-b border-slate-50 last:border-0">
                 <div>
                   <p className="text-slate-700 font-medium">{t(`credit.type${tx.type.charAt(0) + tx.type.slice(1).toLowerCase()}`)}</p>
-                  <p className="text-[11px] text-slate-400">{tx.created_at ? new Date(tx.created_at).toLocaleDateString('en-IN') : ''}</p>
+                  <p className="text-[11px] text-slate-400">{tx.created_at ? shortDate(tx.created_at, lang) : ''}</p>
                 </div>
                 <span className={`font-mono font-bold ${tx.delta_paise > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                   {tx.delta_paise > 0 ? '+' : ''}{fmt(tx.delta_paise || 0)}
@@ -385,7 +385,7 @@ export function CustomerDetail() {
               <div key={tx.id} className="flex items-center justify-between text-sm py-1.5 border-b border-slate-50 last:border-0">
                 <div>
                   <p className="text-slate-700 font-medium">{tx.type}</p>
-                  <p className="text-[11px] text-slate-400">{tx.note || (tx.created_at ? new Date(tx.created_at).toLocaleDateString('en-IN') : '')}</p>
+                  <p className="text-[11px] text-slate-400">{tx.note || (tx.created_at ? shortDate(tx.created_at, lang) : '')}</p>
                 </div>
                 <span className={`font-mono font-bold ${(tx.delta || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                   {(tx.delta || 0) >= 0 ? '+' : ''}{tx.delta ?? tx.points}

@@ -11,7 +11,7 @@ import { track, ACTIVATION } from '@/lib/analytics';
  * public share view (bill passed in already-normalised shape).
  */
 export function ReceiptBody({ bill, shopName, compact = false }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const items = bill.items || [];
   const total = bill.total_paise ?? (bill.total || 0);
   const isVoid = bill.status === 'VOIDED';
@@ -29,9 +29,7 @@ export function ReceiptBody({ bill, shopName, compact = false }) {
           <p className="text-xs text-slate-400">{bill.invoice_number}</p>
         </div>
         <div className="text-right text-xs text-slate-400 flex-shrink-0">
-          {bill.created_at && new Date(bill.created_at).toLocaleString('en-IN', {
-            day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
-          })}
+          {bill.created_at && dateTime(bill.created_at, lang)}
         </div>
       </div>
 
@@ -111,7 +109,7 @@ export function shareReceipt({ bill, shopName, t }) {
 }
 
 export default function ReceiptModal({ bill, shopName, onClose, onNewBill }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   if (!bill) return null;

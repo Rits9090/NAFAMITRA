@@ -14,7 +14,7 @@ import {
 const STATUS_TABS = ['', 'ACTIVE', 'VOIDED'];
 
 export function BillsList() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { activeShop, role } = useAuth();
   const navigate = useNavigate();
   const [bills, setBills] = useState([]);
@@ -107,7 +107,7 @@ export function BillsList() {
                     {b.customer?.name || b.customer_name || t('billing.walkin')}
                   </p>
                   <p className="text-[11px] text-slate-400">
-                    {b.invoice_number} · {b.created_at ? new Date(b.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : ''}
+                    {b.invoice_number} · {b.created_at ? dayMonth(b.created_at, lang) : ''}
                   </p>
                 </div>
                 <div className="text-right flex-shrink-0">
@@ -147,7 +147,7 @@ export function BillsList() {
 
 export function BillDetail() {
   const { id } = useParams();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { activeShop, role } = useAuth();
   const navigate = useNavigate();
   const [bill, setBill] = useState(null);

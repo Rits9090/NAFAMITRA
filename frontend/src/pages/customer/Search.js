@@ -14,7 +14,7 @@ const STATUS_META = {
 };
 
 export default function CustomerSearch() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [tab, setTab] = useState('want'); // want | requirements | shops
   const [reqs, setReqs] = useState([]);
   const [shops, setShops] = useState([]);
@@ -27,6 +27,7 @@ export default function CustomerSearch() {
   const [title, setTitle] = useState('');
   const [items, setItems] = useState([{ name: '', qty: 1 }]);
   const [budget, setBudget] = useState('');
+  const [notes, setNotes] = useState('');
   const [targetShop, setTargetShop] = useState('');
   const titleRef = useRef(null);
 
@@ -67,11 +68,13 @@ export default function CustomerSearch() {
         source: 'manual',
       };
       if (budget && Number(budget) > 0) payload.budget_paise = Math.round(Number(budget) * 100);
+      if (notes.trim()) payload.notes = notes.trim();
       if (targetShop) payload.shop_id = targetShop;
       await api.post('/requirements', payload);
       toast.success(t('search.created'));
       setTitle('');
       setItems([{ name: '', qty: 1 }]);
+      setNotes('');
       setBudget('');
       setTargetShop('');
       setTab('requirements');
@@ -213,6 +216,13 @@ export default function CustomerSearch() {
             </div>
           </div>
 
+          <div>
+            <label className="text-xs font-semibold text-slate-500" htmlFor="req-notes">{t('search.notesLabel')}</label>
+            <input id="req-notes" data-testid="req-notes" value={notes} onChange={(e) => setNotes(e.target.value)}
+              maxLength={300} placeholder={t('search.notesPh')}
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40" />
+          </div>
+
           <button onClick={submit} disabled={submitting} data-testid="req-submit"
             className="w-full py-3 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 disabled:opacity-60">
             {submitting ? t('common.loading') : t('search.submit')}
@@ -236,7 +246,8 @@ export default function CustomerSearch() {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="text-sm font-bold text-slate-800">{r.title}</p>
-                    <p className="text-[11px] text-slate-400">{new Date(r.created_at).toLocaleDateString()}</p>
+              {r.notes && <p className="text-[11px] text-slate-400 mt-0.5">{r.notes}</p>}
+                    <p className="text-[11px] text-slate-400">{shortDate(r.created_at, lang)}</p>
                   </div>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${meta.cls}`}>{t(meta.labelKey)}</span>
                 </div>

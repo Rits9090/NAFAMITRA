@@ -60,10 +60,12 @@ export default function Onboarding() {
   const [step, setStep] = useState('choice'); // choice | shop | customer | done-shop | done-customer
   const [ownerName, setOwnerName] = useState(user?.name || '');
   const [shopName, setShopName] = useState('');
+  const [address, setAddress] = useState('');
   const [category, setCategory] = useState('');
   const [location, setLocation] = useState('');
   const [geoStatus, setGeoStatus] = useState(null);
   const [customerName, setCustomerName] = useState(user?.name || '');
+  const [createdNmId, setCreatedNmId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [createdShop, setCreatedShop] = useState(null);
@@ -93,6 +95,7 @@ export default function Onboarding() {
         owner_name: ownerName.trim(),
         shop_name: shopName.trim(),
         category,
+        address: address.trim() || null,
         location: location.trim() || null,
       });
       setCreatedShop(data.shop);
@@ -111,7 +114,8 @@ export default function Onboarding() {
     setLoading(true);
     setError(null);
     try {
-      await onboardCustomer({ name: customerName.trim() });
+      const res = await onboardCustomer({ name: customerName.trim() });
+      setCreatedNmId(res?.customer?.nm_id || null);
       track(ACTIVATION.ONBOARDING_CUSTOMER, {});
       setStep('done-customer');
     } catch (err) {
@@ -226,6 +230,17 @@ export default function Onboarding() {
               ))}
             </div>
           </fieldset>
+
+          <Field label={t('onboarding.address')}>
+            <input
+              data-testid="address-input"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder={t('onboarding.addressPh')}
+              autoComplete="address-line1"
+              className={inputCls}
+            />
+          </Field>
 
           <Field label={t('onboarding.location')}>
             <div className="relative">
@@ -344,6 +359,13 @@ export default function Onboarding() {
         </div>
         <h1 className="text-xl font-extrabold text-slate-800 mt-4">{t('onboarding.profileReady')}</h1>
         <p className="text-sm text-slate-600 mt-2">{t('onboarding.congrats', { name: customerName.split(' ')[0] })}</p>
+        {createdNmId && (
+          <div className="mt-4 mx-auto max-w-xs bg-white rounded-xl border border-emerald-200 px-4 py-3" data-testid="customer-id-card">
+            <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">{t('onboarding.customerId')}</p>
+            <p className="text-lg font-extrabold font-mono text-emerald-700 mt-0.5">{createdNmId}</p>
+            <p className="text-[10px] text-slate-400 mt-1">{t('onboarding.customerIdHint')}</p>
+          </div>
+        )}
         <button
           data-testid="customer-home"
           onClick={() => navigate('/c')}

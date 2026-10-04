@@ -4,15 +4,18 @@ import api, { errMsg } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
 import { fmt } from '@/lib/money';
+import { dayMonth } from '@/lib/dates';
 import {
   Gift, Wallet, Store, Receipt, QrCode, ChevronRight, Sparkles, Inbox, Copy,
+  ShoppingBasket, Coins, Lightbulb, BrainCircuit,
 } from 'lucide-react';
 
 export default function CustomerHome() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { user, customerProfiles, refresh } = useAuth();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
+  const [summary, setSummary] = useState(null);
   const [qr, setQr] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -22,12 +25,14 @@ export default function CustomerHome() {
     setLoading(true);
     setError(null);
     try {
-      const [ov, q] = await Promise.all([
+      const [ov, q, sm] = await Promise.all([
         api.get('/customer/overview'),
         api.get('/customer/qr').catch(() => ({ data: null })),
+        api.get('/customer/nafa-summary').catch(() => ({ data: null })),
       ]);
       setData(ov.data);
       setQr(q.data);
+      setSummary(sm.data);
     } catch (e) {
       setError(errMsg(e));
     } finally {
@@ -97,6 +102,60 @@ export default function CustomerHome() {
         )}
       </div>
 
+      {/* My Nafa quick summary — known data, honest labels (§41) */}
+      <div className="grid grid-cols-3 gap-2" data-testid="nafa-strip">
+        <button onClick={() => navigate('/c/nafa')} className="bg-white rounded-xl border border-slate-100 shadow-sm p-3 text-left">
+          <ShoppingBasket className="w-4 h-4 text-emerald-600" />
+          <p className="text-sm font-extrabold font-mono text-slate-800 mt-1">{fmt(summary?.known_spending?.total_paise || 0)}</p>
+          <p className="text-[10px] text-slate-400 font-semibold leading-tight">{t('home.mySpending')}</p>
+        </button>
+        <button onClick={() => navigate('/c/nafa')} className="bg-white rounded-xl border border-slate-100 shadow-sm p-3 text-left">
+          <Coins className="w-4 h-4 text-amber-500" />
+          <p className="text-sm font-extrabold font-mono text-slate-800 mt-1">{fmt(summary?.saving_progress_paise || 0)}</p>
+          <p className="text-[10px] text-slate-400 font-semibold leading-tight">{t('home.mySaving')}</p>
+        </button>
+        <button onClick={() => navigate('/c/nafa')} className="bg-white rounded-xl border border-slate-100 shadow-sm p-3 text-left">
+          <Sparkles className="w-4 h-4 text-emerald-600" />
+          <p className="text-sm font-extrabold font-mono text-slate-800 mt-1">
+            {summary?.goals?.length ? `${summary.goals[0].percent}%` : '—'}
+          </p>
+          <p className="text-[10px] text-slate-400 font-semibold leading-tight">
+            {summary?.goals?.length ? summary.goals[0].name : t('home.noGoal')}
+          </p>
+        </button>
+      </div>
+
+      {/* Nafa Insight — only when the data supports it */}
+      {summary?.insight && !['no_data'].includes(summary.insight.key) && (
+        <button onClick={() => navigate('/c/nafa')}
+          className="w-full bg-amber-50/70 border border-amber-200 rounded-xl px-4 py-2.5 flex items-center gap-2.5 text-left"
+          data-testid="home-insight">
+          <Lightbulb className="w-4 h-4 text-amber-500 flex-shrink-0" />
+          <span className="text-xs text-amber-800 leading-snug">
+            {summary.insight.key === 'first_period' && t('nafa.insightFirst')}
+            {summary.insight.key === 'top_category' && t('nafa.insightTop', {
+              cat: summary.insight.category,
+              amount: fmt(summary.insight.paise || 0),
+            })}
+            {summary.insight.key === 'category_trend' && t(summary.insight.delta_paise >= 0 ? 'nafa.insightUp' : 'nafa.insightDown', {
+              cat: summary.insight.category,
+              amount: fmt(Math.abs(summary.insight.delta_paise || 0)),
+            })}
+          </span>
+          <ChevronRight className="w-3.5 h-3.5 text-amber-400 ml-auto flex-shrink-0" />
+        </button>
+      )}
+
+      {/* Ask Nafa Brain */}
+      <button onClick={() => navigate('/c/brain')}
+        className="w-full rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white px-4 py-3.5 flex items-center justify-between shadow-md shadow-emerald-600/20"
+        data-testid="home-brain-cta">
+        <span className="flex items-center gap-2 text-sm font-bold">
+          <BrainCircuit className="w-4.5 h-4.5" style={{ width: 18, height: 18 }} /> {t('brain.askTitle')}
+        </span>
+        <ChevronRight className="w-4 h-4 text-emerald-100" />
+      </button>
+
       {/* Credit strip */}
       <Link to="/c/credit" className="block bg-white rounded-xl border border-slate-100 shadow-sm px-4 py-3 flex items-center justify-between hover:border-red-100">
         <div className="flex items-center gap-2.5">
@@ -116,7 +175,11 @@ export default function CustomerHome() {
 
       {/* My shops */}
       <section>
-        <h2 className="text-sm font-bold text-slate-700 mb-2">{t('app.myShops')}</h2>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-sm font-bold text-slate-700">{t('app.myShops')}</h2>
+          <button onClick={() => navigate('/c/stores')} data-testid="link-my-stores"
+            className="text-xs font-semibold text-emerald-700 hover:underline">{t('stores.title')} ›</button>
+        </div>
         {shops.length === 0 ? (
           <div className="bg-white rounded-xl border border-dashed border-slate-200 py-6 text-center">
             <Store className="w-8 h-8 text-slate-300 mx-auto" />
@@ -157,7 +220,7 @@ export default function CustomerHome() {
                   className="bg-white border border-slate-100 rounded-xl px-4 py-3 flex items-center justify-between shadow-sm">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-700 truncate">{b.shop_name}</p>
-                    <p className="text-[11px] text-slate-400">{b.invoice_number} · {b.created_at ? new Date(b.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : ''}</p>
+                    <p className="text-[11px] text-slate-400">{b.invoice_number} · {b.created_at ? dayMonth(b.created_at, lang) : ''}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-bold font-mono text-slate-800">{fmt(b.total_paise || 0)}</p>

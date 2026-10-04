@@ -176,6 +176,7 @@ class ShopOnboard(BaseModel):
     owner_name: str = Field(min_length=2, max_length=80)
     shop_name: str = Field(min_length=2, max_length=120)
     category: str
+    address: Optional[str] = None   # village / city line
     location: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
@@ -212,7 +213,7 @@ async def onboard_shop(req: ShopOnboard, payload: dict = Depends(get_current_use
         'category': req.category,
         'owner_id': user_id,
         'location': (req.location or '').strip() or None,
-        'address': (req.location or '').strip() or None,
+        'address': ((req.address or '').strip() or (req.location or '').strip() or None),
         'latitude': req.latitude,
         'longitude': req.longitude,
         'phone': person.get('phone'),
