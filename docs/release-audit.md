@@ -98,3 +98,108 @@ Secrets handling verified: no `.env` ever committed (`git log --all --diff-filte
   `arena/01a100e8-nafamitra` and may not push to any other branch. A pull
   request from the arena branch to `main` is opened instead; merging it (or
   pointing Vercel at the arena branch) is the remaining user-side switch.
+
+---
+
+# PART 31 — FINAL RELEASE REPORT (verified results)
+
+## Repository
+
+| Item | Value |
+|---|---|
+| GitHub repository | `https://github.com/Rits9090/NAFAMITRA` |
+| Production-intent branch | `arena/01a100e8-nafamitra` (session branch; PR #1 opens it into `main` for the default-branch ZIP) |
+| Final code commit SHA | `37917b3ef45ed4b005e191e2a183fa3bb7e8a96c` — `fix(deploy): make NafaMitra production build Vercel-compatible` |
+| Previous feature commit | `805a1f290e22a9c5b3d3282246c9e8bec8d1c7ec` (customer upgrade Phase-2; verified already pushed before this release work) |
+| Working tree status | clean; local HEAD == remote SHA (re-fetched and compared) |
+| Pull request | #1 `arena/01a100e8-nafamitra` → `main`, state OPEN, mergeable |
+| Secrets in commits | none (scan + full git history for `.env`/`.pem`/`.key`: empty) |
+
+## Deployment
+
+| Item | Value |
+|---|---|
+| Framework | Create React App (react-scripts) via CRACO — static SPA, **not Vite, not Next.js, not Supabase** |
+| Package manager | yarn v1 (`frontend/yarn.lock` is the only lockfile) |
+| Build command (Vercel) | `cd frontend && yarn build` (from root `vercel.json`) |
+| Output directory | `frontend/build` |
+| Root directory | repository root (root `vercel.json` points into `frontend/`) |
+| Routing strategy | client-side `BrowserRouter`; SPA rewrite `/(.*) → /index.html` in `vercel.json` |
+| PWA strategy | `sw.js` offline shell: navigations network-first, API never cached, content-hashed assets cache-first; manifest + icons present in build |
+| Required env (frontend, build-time) | `REACT_APP_BACKEND_URL` (recommended in production — points the static bundle at a hosted FastAPI instance; optional at build, defaults to same-origin `/api`) |
+| Backend | FastAPI + MongoDB, hosted separately (NOT part of the static Vercel deploy) |
+
+## Root cause of the blank screen (concrete, verified)
+
+1. **The ZIP being deployed is the wrong artifact.** GitHub's "Download ZIP" uses the
+   default branch = `main` @ `e955077` — a pre-feature snapshot. All feature work
+   (and the deployment fixes) live only on `arena/01a100e8-nafamitra`.
+2. **No deployable configuration for the monorepo layout.** The repo root has no
+   `package.json`/`index.html` and no `vercel.json`; a deployment pointed at the
+   repository root cannot be detected or built, and static serving of the root has
+   no `index.html` → blank/404. Demonstrated live: nested route without SPA
+   fallback returns **404** (`/c/brain` on a fallback-less static server) while the
+   configured deployment returns **200** with the app shell.
+3. **Vercel's default `CI=true` failed the build.** Reproduced exactly:
+   `CI=true yarn build` → `Treating warnings as errors because process.env.CI = true.` →
+   **exit 1** on 4 `react-hooks/exhaustive-deps` warnings (AuthContext/Products/Reports).
+   A failed build leaves nothing (or a stale deployment) to serve.
+
+Non-causes verified (tested, not assumed): runtime JS crash of the built bundle
+(render smoke: 0 page errors), missing service-worker/manifest assets (present,
+valid), wrong asset base paths (root-absolute `/static/...`, correct at domain
+root), backend-down blanking the shell (render smoke against a build with **no**
+API still renders brand + full login UI, 0 errors), case-sensitive imports
+(full Linux build resolves), stale service-worker chunks (network-first
+navigations + hashed assets; old caches purged on activate).
+
+## Fixes (all in commit `37917b3`)
+
+1. **`vercel.json` (repo root)** — `installCommand`/`buildCommand` scoped into
+   `frontend/`, `outputDirectory: frontend/build`, SPA rewrite. A GitHub ZIP now
+   deploys from the repository root with zero dashboard configuration.
+2. **CI=true build passes** — resolved all 4 lint warnings with truthful
+   `useCallback`/dependency fixes (verified zero behavior change: memoized
+   identities are stable or equivalent to existing effect deps). Final build:
+   `Compiled successfully`, **0 warnings, exit 0 under CI=true**.
+3. **Global `ErrorBoundary`** (`src/components/ErrorBoundary.js`, mounted in
+   `App.js` inside `I18nProvider`) — localized recovery screen using new
+   `common.errorMsg` key (mr/en/hi parity, i18ncheck 8/8 @ **829 keys ×3**);
+   catches render crashes and stale lazy chunks instead of white-screening;
+   full error still logged to console for developers.
+4. **`login_e2e.js` `SMOKE_URL` override** — smoke tests can target any
+   deployment preview, not just :3000.
+
+## Verification record (the exact artifact Vercel would serve)
+
+| Check | Result |
+|---|---|
+| Clean install (`yarn install --frozen-lockfile`) | exit 0 (37.8s) |
+| Production build (`CI=true yarn build`) | **exit 0**, "Compiled successfully", 0 warnings |
+| Artifact inspection | `index.html` references `/static/js/main.*.js` + CSS; 34 JS chunks; manifest/icons/sw present; no `/src/` dev refs |
+| Render smoke (prod build + API) | **PASS**, brand ✓, 0 page errors |
+| Render smoke (prod build, backend down) | **PASS**, 0 page errors — no blank screen |
+| Login e2e (full OTP flow, prod build) | **PASS**, `/auth/request-otp → verify → /auth/me` all 200, 0 page errors |
+| Root `/` direct load | 200 + app shell |
+| Nested routes direct load (`/auth`, `/c/brain`, `/c/stores`, `/billing`, `/receipt/:t`) | 200 + app shell (SPA rewrite); **404 without fallback** (control test) |
+| Static assets | `main.js` 200, `text/javascript` |
+| API health via preview proxy | `{"status":"ok",...}` |
+| i18ncheck | **8/8**, 829 keys × 3 languages |
+| journey_smoke (full stack) | **136/136** |
+| pytest | **22/22** |
+| Bundle | main 553 KB raw / **150 KB gzip**; 34 lazy chunks (6.6 MB raw total, route-split) |
+| Git push | success; local HEAD == `origin/arena/01a100e8-nafamitra` == `37917b3` re-fetched |
+| Secrets scan (tree + full history) | clean |
+
+## Blockers (not verified — access unavailable)
+
+- **Real Vercel preview/production deployment**: `vercel whoami` → *Logged out*;
+  `vercel deploy --temporary` → *"Temporary deployments aren't available for this
+  attempt. Log in to continue."* No `VERCEL_TOKEN` in the environment. Creating a
+  deployment requires your Vercel login/token — not attempted (credentials must
+  never be requested in chat). **Everything above was verified against the
+  locally reproduced production artifact instead.**
+- **`main` update**: this session may only push to
+  `arena/01a100e8-nafamitra`. PR **#1** (arena → main) is OPEN and MERGEABLE —
+  merging it (or pointing the Vercel project at the arena branch) is the switch
+  that completes `GITHUB → VERCEL` for the default-branch ZIP workflow.
