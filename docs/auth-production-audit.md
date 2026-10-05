@@ -196,3 +196,12 @@ browser (dev tools device mode against the preview URL).
   preview proxy.
 
 ## 10. Git & deployment (final numbers appended after push)
+
+| Item | Value |
+|---|---|
+| Branch | `arena/01a100e8-nafamitra` |
+| Final commit | `b0b5dbc3bd8c3b105cac83db2abc69b56f81d2a8` — `fix(auth): add demo mode and harden production authentication` |
+| Remote SHA (re-fetched) | `b0b5dbc3bd8c3b105cac83db2abc69b56f81d2a8` (identical to local HEAD) |
+| Working tree | clean, no secrets (tree + history scans) |
+| Vercel | CLI logged out; temporary deploys require login → **deployment NOT verifiable from this environment**. GitHub→Vercel chain: push succeeded; Vercel must be re-deployed (or reconnected) from this commit with `REACT_APP_BACKEND_URL` set to a hosted backend instance. |
+| PR to `main` | #1 remains the path for the default-branch ZIP workflow (session may only push to the arena branch). |
