@@ -6,7 +6,7 @@ export default {
     required: 'required', viewAll: 'View all', done: 'Done', yes: 'Yes', no: 'No',
     status: 'Status', date: 'Date', amount: 'Amount', name: 'Name', phone: 'Mobile',
     notes: 'Notes', profile: 'Profile', logout: 'Log out', switchAccount: 'Switch account',
-    language: 'Language', errorTitle: 'Something went wrong', emptyTitle: 'Nothing here',
+    language: 'Language', errorTitle: 'Something went wrong', errorMsg: 'Something went wrong while loading NafaMitra. Please refresh and try again.', emptyTitle: 'Nothing here',
     perMonth: 'This month', help: 'Need help?',
   },
   brand: {

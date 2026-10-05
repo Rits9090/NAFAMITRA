@@ -56,7 +56,8 @@ export function AuthProvider({ children }) {
     }
   }, [clearSession]);
 
-  useEffect(() => { loadMe(token); /* eslint-disable-next-line */ }, [token]);
+  // loadMe is stable (useCallback with a stable clearSession dep) — safe in deps.
+  useEffect(() => { loadMe(token); }, [token, loadMe]);
 
   const requestOtp = useCallback(async (phone) => {
     const { data } = await api.post('/auth/request-otp', { phone });

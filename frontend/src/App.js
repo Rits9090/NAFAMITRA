@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { I18nProvider } from '@/i18n';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 const Login = lazy(() => import('@/pages/Login'));
 const Onboarding = lazy(() => import('@/pages/Onboarding'));
@@ -152,10 +153,12 @@ function App() {
     <div className="App">
       <AuthProvider>
         <I18nProvider>
-          <BrowserRouter>
-            <AppRoutes />
-            <Toaster position="top-right" richColors expand={false} />
-          </BrowserRouter>
+          <ErrorBoundary>
+            <BrowserRouter>
+              <AppRoutes />
+              <Toaster position="top-right" richColors expand={false} />
+            </BrowserRouter>
+          </ErrorBoundary>
         </I18nProvider>
       </AuthProvider>
     </div>

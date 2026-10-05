@@ -27,7 +27,8 @@ const setInput = (win, el, val) => {
 };
 
 (async () => {
-  const dom = await JSDOM.fromURL('http://127.0.0.1:3000/', {
+  const TARGET = process.env.SMOKE_URL || 'http://127.0.0.1:3000/';
+  const dom = await JSDOM.fromURL(TARGET, {
     runScripts: 'dangerously', resources: new LocalOnly(), pretendToBeVisual: true, virtualConsole: vc,
     beforeParse(window) {
       window.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false });

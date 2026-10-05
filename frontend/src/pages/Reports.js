@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie, Legend } from 'recharts';
 import { BarChart2, TrendingUp, Users, Package, Download, Calendar } from 'lucide-react';
 import api from '@/lib/api';
@@ -30,9 +30,9 @@ export default function Reports() {
   const [inventoryData, setInventoryData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { loadReport(); }, [tab, period]);
+  useEffect(() => { loadReport(); }, [loadReport]);
 
-  const loadReport = async () => {
+  const loadReport = useCallback(async () => {
     setLoading(true);
     try {
       if (tab === 'Sales') {
@@ -54,8 +54,7 @@ export default function Reports() {
     } finally {
       setLoading(false);
     }
-  };
-
+  }, [tab, period]);
   const fmt = (n) => `₹${(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
   return (

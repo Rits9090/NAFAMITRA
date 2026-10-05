@@ -32,6 +32,7 @@ export default {
     switchAccount: 'खाते बदला',
     language: 'भाषा',
     errorTitle: 'अडचण आली',
+    errorMsg: 'NafaMitra लोड करताना अडचण झाली. कृपया पृष्ठ रीफ्रेश करा आणि पुन्हा प्रयत्न करा.',
     emptyTitle: 'काहीच नाही',
     perMonth: 'या महिन्यात',
     help: 'मदत हवी?',

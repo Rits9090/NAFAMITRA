@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Package, Plus, Search, Edit2, Trash2, X, AlertTriangle, TrendingUp } from 'lucide-react';
 import { PRODUCTS } from '@/constants/testIds';
@@ -27,13 +27,15 @@ export default function Products() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
 
+  // Mount-only initial load (filters start empty; debounced effect below handles changes).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadProducts(); loadCategories(); }, []);
   useEffect(() => {
     const t = setTimeout(() => loadProducts(), 400);
     return () => clearTimeout(t);
-  }, [search, categoryFilter]);
+  }, [loadProducts]);
 
-  const loadProducts = async () => {
+  const loadProducts = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ limit: 100 });
@@ -45,8 +47,7 @@ export default function Products() {
     } finally {
       setLoading(false);
     }
-  };
-
+  }, [search, categoryFilter]);
   const loadCategories = async () => {
     const { data } = await api.get(`/products/categories`);
     setCategories(data || []);

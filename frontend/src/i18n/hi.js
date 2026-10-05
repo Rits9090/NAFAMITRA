@@ -6,7 +6,7 @@ export default {
     required: 'ज़रूरी', viewAll: 'सभी देखें', done: 'हो गया', yes: 'हाँ', no: 'नहीं',
     status: 'स्थिति', date: 'तारीख', amount: 'राशि', name: 'नाम', phone: 'मोबाइल',
     notes: 'नोट्स', profile: 'प्रोफ़ाइल', logout: 'लॉग आउट', switchAccount: 'खाता बदलें',
-    language: 'भाषा', errorTitle: 'कुछ गड़बड़ हुई', emptyTitle: 'यहाँ कुछ नहीं',
+    language: 'भाषा', errorTitle: 'कुछ गड़बड़ हुई', errorMsg: 'NafaMitra लोड करते समय समस्या हुई। कृपया पेज रीफ्रेश करें और दोबारा प्रयास करें।', emptyTitle: 'यहाँ कुछ नहीं',
     perMonth: 'इस महीने', help: 'मदद चाहिए?',
   },
   brand: {
