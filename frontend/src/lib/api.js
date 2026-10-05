@@ -5,6 +5,9 @@
  * - logs the user out once on 401 (session expiry) without redirect loops
  */
 import axios from 'axios';
+import { tStatic } from '@/i18n';
+import { getDemo } from '@/demo/demoMode';
+import { demoHandle, resetDemoStore } from '@/demo/demoHandle';
 
 // Same-origin by default ('/api' → dev server proxies to the backend, and a
 // production host can proxy too). Set REACT_APP_BACKEND_URL only when the API
@@ -47,6 +50,35 @@ export function setUnauthorizedHandler(fn) { onUnauthorized = fn; }
 
 export const api = axios.create({ baseURL: API_BASE, timeout: 30000 });
 
+// ---------------------------------------------------------------------
+// Demo-mode adapter: while Demo Mode is on, requests NEVER leave the
+// browser — they are fulfilled from local fixtures (or rejected with an
+// explicit demo_readonly error for writes). Real auth/data is untouched.
+// ---------------------------------------------------------------------
+const networkAdapter = axios.getAdapter(api.defaults.adapter);
+api.defaults.adapter = async (config) => {
+  const demoRole = getDemo();
+  if (demoRole) {
+    config.demoRole = demoRole;
+    const res = demoHandle(config);
+    return {
+      data: res.data,
+      status: res.status,
+      statusText: res.status >= 400 ? 'Error' : 'OK',
+      headers: { 'content-type': 'application/json' },
+      config,
+      request: null,
+    };
+  }
+  return networkAdapter(config);
+};
+
+/** Enter demo mode with a fresh synthetic dataset. */
+export function beginDemo(role) {
+  resetDemoStore();
+  return role;
+}
+
 api.interceptors.request.use((config) => {
   const token = store.getToken();
   if (token) {
@@ -59,6 +91,43 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+/**
+ * Error classification — the single place an HTTP failure becomes a
+ * user- understandable message. Known code → i18n key (mr/en/hi); responses
+ * that are NOT NafaMitra API shaped (HTML from a static host, gateway pages,
+ * missing backend) are classified as `unavailable` instead of leaking the
+ * generic "Request failed. Please try again." mask.
+ */
+const CODE_MSG_KEYS = {
+  network: 'err.network',
+  timeout: 'err.timeout',
+  unavailable: 'err.unavailable',
+  rate_limited: 'err.rateLimited',
+  cooldown: 'err.rateLimited',
+  invalid_phone: 'auth.invalidPhone',
+  otp_invalid: 'err.otpInvalid',
+  otp_expired: 'err.otpInvalid',
+  unauthorized: 'err.sessionExpired',
+  forbidden: 'err.forbidden',
+  demo_readonly: 'demo.blocked',
+};
+
+function classifyError(status, payload, err) {
+  const isOurs = payload && typeof payload === 'object' && (payload.error?.code || payload.detail);
+  const isHtml = typeof payload === 'string' && /^\s*</.test(payload);
+  if (err?.code === 'ECONNABORTED' || /timeout/i.test(err?.message || '')) return 'timeout';
+  if (!status) return 'network';
+  if (payload?.error?.code) return payload.error.code;
+  // Server answered but not with our error envelope: static host / gateway /
+  // wrong backend URL — never surface raw HTML or a bare status to the user.
+  if (isHtml || (!isOurs && [404, 405, 415, 422, 500, 502, 503, 504].includes(status))) return 'unavailable';
+  if (status === 429) return 'rate_limited';
+  if (status === 401) return 'unauthorized';
+  if (status === 403) return 'forbidden';
+  if (status === 400) return 'bad_request';
+  return 'http_error';
+}
+
 api.interceptors.response.use(
   (res) => res,
   (err) => {
@@ -66,16 +135,38 @@ api.interceptors.response.use(
     const payload = err.response?.data;
     const friendly = payload?.error || {};
     const lang = store.getLang();
+    const code = classifyError(status, payload, err);
+    // Preferred message: localized key when known, else server's (mr/en),
+    // else the localized classification — NEVER a bare "Request failed".
+    const msgKey = friendly.msgKey || CODE_MSG_KEYS[code] || null;
+    let message = null;
+    if (lang === 'mr' && friendly.message_mr) message = friendly.message_mr;
+    else if (friendly.message) message = friendly.message;
+    if (msgKey) {
+      const localized = tStatic(msgKey);
+      if (localized) message = localized;
+    }
+    if (!message) {
+      message = tStatic('err.generic') || 'Something went wrong. Please try again.';
+    }
     const normalized = {
       status,
-      code: friendly.code || 'network',
-      message: (lang === 'mr' && friendly.message_mr) ? friendly.message_mr
-        : (friendly.message || (status ? 'Request failed. Please try again.' : 'Network error. Please check your connection.')),
+      code,
+      msgKey,
+      message,
       messageMr: friendly.message_mr || null,
       messageEn: friendly.message || null,
       requestId: friendly.request_id || null,
       raw: err,
     };
+    // Structured diagnostics — status/code/path/request id only. Never tokens,
+    // OTPs, phone numbers or request bodies.
+    try {
+      const path = String(err.config?.url || '').split('?')[0];
+      console.warn('[api-error]', JSON.stringify({
+        code, status: status || 0, path, request_id: normalized.requestId, ts: Date.now(),
+      }));
+    } catch { /* diagnostics must never break error handling */ }
     // session expired — notify once, keep in-progress state handling to pages
     if (status === 401 && !err.config?.url?.includes('/auth/')) {
       if (onUnauthorized) onUnauthorized(normalized);
@@ -85,9 +176,20 @@ api.interceptors.response.use(
   }
 );
 
-/** Extract the friendly message from any thrown axios error. */
-export function errMsg(err, fallback = 'Something went wrong. Please try again.') {
-  return err?.friendly?.message || fallback;
+/** Extract the friendly, localized message from any thrown axios error. */
+export function errMsg(err, fallback = null) {
+  const f = err?.friendly;
+  if (!f) return fallback != null ? fallback : (tStatic('err.generic') || 'Something went wrong.');
+  if (f.msgKey) {
+    const localized = tStatic(f.msgKey);
+    if (localized) return localized;
+  }
+  return f.message || fallback || (tStatic('err.generic') || 'Something went wrong.');
+}
+
+/** The i18n key for an error (tests + structured handling). */
+export function errKey(err) {
+  return err?.friendly?.msgKey || null;
 }
 
 export function errCode(err) {

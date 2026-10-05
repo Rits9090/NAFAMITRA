@@ -23,6 +23,17 @@ const I18nContext = createContext({
   ],
 });
 
+// Module-level current language — lets NON-React code (error mapping in
+// lib/api.js) resolve the same localized keys without a React context.
+let currentLang = DEFAULT_LANG;
+export function getCurrentLang() { return currentLang; }
+
+/** Localized lookup for non-React modules (returns null when missing). */
+export function tStatic(key, vars) {
+  const dict = DICTS[currentLang] || DICTS[DEFAULT_LANG];
+  return resolve(dict, key, vars) ?? resolve(DICTS.en, key, vars) ?? null;
+}
+
 function resolve(dict, key, vars) {
   const parts = key.split('.');
   let value = dict;
@@ -40,12 +51,14 @@ export function I18nProvider({ children }) {
   const [lang, setLangState] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved && DICTS[saved]) return saved;
+      if (saved && DICTS[saved]) { currentLang = saved; return saved; }
     } catch { /* ignore */ }
+    currentLang = DEFAULT_LANG;
     return DEFAULT_LANG;
   });
 
   useEffect(() => {
+    currentLang = lang;
     try { localStorage.setItem(STORAGE_KEY, lang); } catch { /* ignore */ }
     document.documentElement.lang = lang;
     document.body.classList.remove('lang-mr', 'lang-en', 'lang-hi');
@@ -53,7 +66,7 @@ export function I18nProvider({ children }) {
   }, [lang]);
 
   const setLang = useCallback((next) => {
-    if (DICTS[next]) setLangState(next);
+    if (DICTS[next]) { currentLang = next; setLangState(next); }
   }, []);
 
   const t = useCallback((key, vars) => {

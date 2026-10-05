@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
 import { fmt } from '@/lib/money';
 import { Gift, Save, Users, ScrollText, Lock } from 'lucide-react';
+import { dateTime } from '@/lib/dates';
 
 export default function Loyalty() {
   const { t, lang } = useI18n();

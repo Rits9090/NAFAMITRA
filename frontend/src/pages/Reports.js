@@ -30,8 +30,6 @@ export default function Reports() {
   const [inventoryData, setInventoryData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { loadReport(); }, [loadReport]);
-
   const loadReport = useCallback(async () => {
     setLoading(true);
     try {
@@ -55,6 +53,10 @@ export default function Reports() {
       setLoading(false);
     }
   }, [tab, period]);
+
+  // Declared before use (dep arrays evaluate at render time — TDZ otherwise).
+  useEffect(() => { loadReport(); }, [loadReport]);
+
   const fmt = (n) => `₹${(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
   return (

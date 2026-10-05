@@ -55,29 +55,41 @@ function Boot({ children }) {
   return children;
 }
 
-/** Merchant shell: needs a session with merchant identity + a shop. */
+/** Merchant shell: needs a session with merchant identity + a shop.
+ *  Demo mode ('merchant') is an explicit, labeled exception — local
+ *  fixtures only, no token, no server-side authorization change. */
 function MerchantGuard({ children }) {
-  const { token, kind, shops, activeShop, refresh } = useAuth();
+  const { token, kind, shops, activeShop, refresh, demo } = useAuth();
   const location = useLocation();
-  if (!token) return <Navigate to="/auth" replace state={{ from: location.pathname }} />;
-  if (kind === 'customer') return <Navigate to="/c" replace />;
-  if (shops.length === 0) return <Navigate to="/onboarding?intent=merchant" replace />;
-  if (!activeShop) { refresh(); return null; }
-  return children;
+  if (token) {
+    if (kind === 'customer') return <Navigate to="/c" replace />;
+    if (shops.length === 0) return <Navigate to="/onboarding?intent=merchant" replace />;
+    if (!activeShop) { refresh(); return null; }
+    return children;
+  }
+  if (demo === 'merchant') return children;
+  return <Navigate to="/auth" replace state={{ from: location.pathname }} />;
 }
 
-/** Customer shell: needs a session with a customer identity. */
+/** Customer shell: needs a session with a customer identity (or customer demo). */
 function CustomerGuard({ children }) {
-  const { token, kind } = useAuth();
+  const { token, kind, demo } = useAuth();
   const location = useLocation();
-  if (!token) return <Navigate to="/auth" replace state={{ from: location.pathname }} />;
-  if (kind === 'merchant') return <Navigate to="/" replace />;
-  return children;
+  if (token) {
+    if (kind === 'merchant') return <Navigate to="/" replace />;
+    return children;
+  }
+  if (demo === 'customer') return children;
+  return <Navigate to="/auth" replace state={{ from: location.pathname }} />;
 }
 
 function HomeRedirect() {
-  const { token, kind, shops } = useAuth();
-  if (!token) return <Navigate to="/auth" replace />;
+  const { token, kind, shops, demo } = useAuth();
+  if (!token) {
+    if (demo === 'merchant') return <Navigate to="/dashboard" replace />;
+    if (demo === 'customer') return <Navigate to="/c" replace />;
+    return <Navigate to="/auth" replace />;
+  }
   if (kind === 'customer') return <Navigate to="/c" replace />;
   if (shops.length === 0) return <Navigate to="/onboarding?intent=merchant" replace />;
   return <Navigate to="/dashboard" replace />;

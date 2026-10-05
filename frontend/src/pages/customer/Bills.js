@@ -6,6 +6,7 @@ import { useI18n } from '@/i18n';
 import { fmt } from '@/lib/money';
 import { ReceiptBody, shareReceipt } from '@/components/Receipt';
 import { Inbox, ChevronLeft, Share2, Link2, Gift, Wallet, ScrollText, Repeat2, Loader } from 'lucide-react';
+import { shortDate } from '@/lib/dates';
 
 /**
  * Reorder → creates a REQUIREMENT (shopping list) from a past bill.

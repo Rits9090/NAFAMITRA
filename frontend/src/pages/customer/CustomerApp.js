@@ -18,7 +18,7 @@ const nav = [
 
 export default function CustomerApp() {
   const { t } = useI18n();
-  const { kind, logout } = useAuth();
+  const { kind, logout, demo, exitDemo } = useAuth();
   const navigate = useNavigate();
 
   return (
@@ -35,6 +35,21 @@ export default function CustomerApp() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {demo && (
+              <div className="flex items-center gap-1" data-testid="demo-badge">
+                <span className="text-[9px] font-extrabold tracking-wider bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-1 rounded">
+                  {t('demo.badge')}
+                </span>
+                <button
+                  type="button"
+                  data-testid="exit-demo"
+                  onClick={() => { exitDemo(); navigate('/auth', { replace: true }); }}
+                  className="text-[10px] font-bold text-slate-500 hover:text-red-600 border border-slate-200 px-1.5 py-1 rounded transition-colors"
+                >
+                  {t('demo.exit')}
+                </button>
+              </div>
+            )}
             <LanguageSwitcher compact />
             {kind === 'merchant' || kind === 'both' ? (
               <button

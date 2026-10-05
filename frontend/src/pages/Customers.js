@@ -5,6 +5,7 @@ import { track, ACTIVATION } from '@/lib/analytics';
 import api, { errMsg } from '@/lib/api';
 import { useI18n } from '@/i18n';
 import { fmt } from '@/lib/money';
+import { shortDate } from '@/lib/dates';
 import { CUSTOMERS } from '@/constants/testIds';
 import {
   Users, Plus, Search, X, ChevronRight, Phone, ShoppingBag, CreditCard,

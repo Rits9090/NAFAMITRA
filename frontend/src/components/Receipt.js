@@ -5,6 +5,7 @@ import { fmt } from '@/lib/money';
 import { toast } from 'sonner';
 import { Check, Share2, Link2, X, Printer, MessageCircle } from 'lucide-react';
 import { track, ACTIVATION } from '@/lib/analytics';
+import { dateTime } from '@/lib/dates';
 
 /**
  * Digital receipt — works for merchant bills, customer bills and the

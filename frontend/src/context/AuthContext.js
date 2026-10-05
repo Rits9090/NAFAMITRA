@@ -7,7 +7,9 @@
  * server-side (X-Shop-Id + membership check) — never trusted from the client.
  */
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import api, { setUnauthorizedHandler, errMsg, setSessionToken, clearSessionToken } from '@/lib/api';
+import api, { setUnauthorizedHandler, errMsg, setSessionToken, clearSessionToken, beginDemo } from '@/lib/api';
+import { getDemo, setDemo, subscribeDemo } from '@/demo/demoMode';
+import { DEMO_SHOP, DEMO_ME } from '@/demo/fixtures';
 
 const AuthContext = createContext({});
 
@@ -108,23 +110,61 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(() => clearSession(), [clearSession]);
 
+  // ---- Demo mode (clearly labeled, unauthenticated, local fixtures only) ----
+  const [demo, setDemoState] = useState(getDemo);
+  useEffect(() => subscribeDemo((next) => setDemoState(next)), []);
+  const enterDemo = useCallback((role2) => {
+    beginDemo(role2);        // fresh synthetic dataset
+    setDemo(role2);          // module flag + persistence
+    setDemoState(role2);
+  }, []);
+  const exitDemo = useCallback(() => {
+    setDemo(null);
+    setDemoState(null);
+  }, []);
+
   const identities = me?.identities || null;
-  const user = me?.user || null;
+  const realUser = me?.user || null;
   const shop = identities?.shops?.find((s) => s.id === activeShop)
     || identities?.shops?.[0] || null;
   const role = shop?.role || null;
 
+  // Demo-aware view for the UI shells (display only — no token exists and
+  // the server never sees demo state; authorization stays server-side).
+  // Memoized as one unit so hook deps stay stable (react-hooks/exhaustive-deps).
+  const demoView = useMemo(() => {
+    if (demo === 'merchant') {
+      return {
+        user: DEMO_ME.user, identities: DEMO_ME.identities, shops: [DEMO_SHOP],
+        activeShopView: DEMO_SHOP, kindView: 'merchant', roleView: 'owner',
+      };
+    }
+    if (demo === 'customer') {
+      return {
+        user: DEMO_ME.user, identities, shops: identities?.shops || [],
+        activeShopView: shop, kindView: 'customer', roleView: role,
+      };
+    }
+    return {
+      user: realUser, identities, shops: identities?.shops || [],
+      activeShopView: shop, kindView: identities?.kind || null, roleView: role,
+    };
+  }, [demo, realUser, identities, shop, role]);
+
   const value = useMemo(() => ({
     token,
     loading,
-    user,
+    user: demoView.user,
     identities,
-    shops: identities?.shops || [],
+    shops: demoView.shops,
     customerProfiles: identities?.customer_profiles || [],
-    kind: identities?.kind || null,
-    activeShop: shop,
-    activeShopId: shop?.id || null,
-    role,
+    kind: demoView.kindView,
+    activeShop: demoView.activeShopView,
+    activeShopId: demoView.activeShopView?.id || null,
+    role: demoView.roleView,
+    demo,
+    enterDemo,
+    exitDemo,
     requestOtp,
     verifyOtp,
     refresh,
@@ -133,8 +173,9 @@ export function AuthProvider({ children }) {
     onboardCustomer,
     logout,
     clearSession,
-  }), [token, loading, user, identities, shop, role, requestOtp, verifyOtp,
-       refresh, chooseShop, onboardShop, onboardCustomer, logout, clearSession]);
+  }), [token, loading, identities, demoView, demo, enterDemo, exitDemo,
+       requestOtp, verifyOtp, refresh, chooseShop, onboardShop,
+       onboardCustomer, logout, clearSession]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

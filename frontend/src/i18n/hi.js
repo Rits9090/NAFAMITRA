@@ -1,4 +1,19 @@
 export default {
+  demo: {
+    badge: 'डेमो मोड',
+    exit: 'डेमो से बाहर',
+    blocked: 'डेमो मोड — यह क्रिया असली खाते में उपलब्ध है।',
+  },
+  err: {
+    network: 'अभी कनेक्ट नहीं हो सकता। कृपया अपना इंटरनेट जाँचें और दोबारा प्रयास करें।',
+    timeout: 'अनुरोध में बहुत समय लगा। कृपया दोबारा प्रयास करें।',
+    unavailable: 'सेवा अस्थायी रूप से अनुपलब्ध है। कृपया थोड़ी देर में दोबारा प्रयास करें।',
+    rateLimited: 'बहुत अधिक OTP अनुरोध। कृपया थोड़ी देर प्रतीक्षा करें।',
+    otpInvalid: 'OTP गलत है या समाप्त हो गया है। कृपया नया OTP मँगवाएँ।',
+    sessionExpired: 'आपका सत्र समाप्त हो गया है। कृपया दोबारा साइन इन करें।',
+    forbidden: 'आपको यह करने की अनुमति नहीं है।',
+    generic: 'कुछ गड़बड़ हुई। कृपया दोबारा प्रयास करें।',
+  },
   common: {
     save: 'सेव करें', cancel: 'रद्द करें', close: 'बंद करें', search: 'खोजें', add: 'जोड़ें',
     edit: 'बदलें', delete: 'हटाएँ', back: 'पीछे', next: 'आगे', loading: 'लोड हो रहा है…',
@@ -34,6 +49,18 @@ export default {
     customerWelcomeBack: 'आपके नफ़े में वापस स्वागत है.',
     changeJourney: 'बदलें',
     journeyNote: 'एक ही खाता दोनों हो सकता है — आपका डेटा एक ही जगह सुरक्षित है.',
+    demoOr: 'या',
+    exploreDemo: 'डेमो देखें',
+    exploreDemoSub: 'खाता बनाए बिना NafaMitra देखें।',
+    demoChooserTitle: 'डेमो चुनें',
+    demoChooserSub: 'नमूना डेटा के साथ असली स्क्रीन देखें।',
+    demoRetailer: 'दुकानदार डेमो',
+    demoRetailerSub: 'बिलिंग, ग्राहक, स्टॉक और रिपोर्ट',
+    demoCustomer: 'ग्राहक डेमो',
+    demoCustomerSub: 'मेरा नफा, खरीदारी और धनलाभ',
+    demoTransitionTitle: 'आप डेमो मोड में प्रवेश कर रहे हैं',
+    demoTransitionSub: 'नमूना व्यवसाय डेटा से NafaMitra देखें।',
+    enterDemo: 'डेमो में प्रवेश करें',
 
     welcome: 'NafaMitra में स्वागत है', subtitle: 'आपका डिजिटल व्यवसाय साथी',
     iAmShop: 'मैं दुकानदार हूँ', iAmShopSub: 'मुनाफ़ा और व्यवसाय बढ़ाएँ',

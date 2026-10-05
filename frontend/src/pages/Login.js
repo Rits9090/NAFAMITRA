@@ -198,7 +198,7 @@ const JOURNEYS = [
 
 export default function Login() {
   const { t } = useI18n();
-  const { verifyOtp, requestOtp, token, loading: authLoading, kind, identities } = useAuth();
+  const { verifyOtp, requestOtp, token, loading: authLoading, kind, identities, enterDemo } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [config, setConfig] = useState(null);
@@ -212,7 +212,19 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [devOtp, setDevOtp] = useState(null);
+  const [demoView, setDemoView] = useState(null); // null | 'picker' | 'transition'
+  const [demoRole, setDemoRole] = useState(null); // 'merchant' | 'customer'
   const phoneRef = useRef(null);
+
+  // Demo transition: short info screen, then straight into the dashboard.
+  useEffect(() => {
+    if (demoView !== 'transition' || !demoRole) return undefined;
+    const id = setTimeout(() => {
+      enterDemo(demoRole);
+      navigate(demoRole === 'merchant' ? '/dashboard' : '/c', { replace: true });
+    }, 900);
+    return () => clearTimeout(id);
+  }, [demoView, demoRole, enterDemo, navigate]);
 
   useEffect(() => { fetchConfig().then(setConfig); }, []);
 
@@ -383,6 +395,83 @@ export default function Login() {
             <p className="text-[11px] text-slate-400 text-center px-2 leading-snug">
               {t('auth.journeyNote')}
             </p>
+
+            {/* ---- Demo mode: labeled secondary entry, no OTP required ---- */}
+            {demoView === null && (
+              <div className="pt-1" data-testid="demo-cta">
+                <div className="flex items-center gap-3 my-1" aria-hidden="true">
+                  <span className="h-px flex-1 bg-slate-200" />
+                  <span className="text-[11px] text-slate-400 font-medium">{t('auth.demoOr')}</span>
+                  <span className="h-px flex-1 bg-slate-200" />
+                </div>
+                <button
+                  type="button"
+                  data-testid="explore-demo"
+                  onClick={() => setDemoView('picker')}
+                  className="w-full py-3 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/60 hover:bg-amber-50 text-amber-800 font-bold text-sm transition-colors flex items-center justify-center gap-2"
+                >
+                  <Sparkles className="w-4 h-4" aria-hidden="true" />
+                  {t('auth.exploreDemo')}
+                </button>
+                <p className="text-[11px] text-slate-400 text-center mt-1.5 leading-snug">
+                  {t('auth.exploreDemoSub')}
+                </p>
+              </div>
+            )}
+
+            {demoView === 'picker' && (
+              <div className="rounded-2xl border-2 border-amber-300 bg-amber-50/50 p-4 space-y-2.5" data-testid="demo-picker">
+                <p className="text-sm font-extrabold text-slate-800 text-center">{t('auth.demoChooserTitle')}</p>
+                <p className="text-[11px] text-slate-500 text-center -mt-1">{t('auth.demoChooserSub')}</p>
+                <button
+                  type="button"
+                  data-testid="demo-retailer"
+                  onClick={() => { setDemoRole('merchant'); setDemoView('transition'); }}
+                  className="w-full text-left rounded-xl bg-white border border-emerald-300 hover:border-emerald-500 p-3 transition-colors"
+                >
+                  <p className="text-sm font-bold text-emerald-800">{t('auth.demoRetailer')}</p>
+                  <p className="text-[11px] text-slate-500">{t('auth.demoRetailerSub')}</p>
+                </button>
+                <button
+                  type="button"
+                  data-testid="demo-customer"
+                  onClick={() => { setDemoRole('customer'); setDemoView('transition'); }}
+                  className="w-full text-left rounded-xl bg-white border border-slate-300 hover:border-slate-500 p-3 transition-colors"
+                >
+                  <p className="text-sm font-bold text-slate-800">{t('auth.demoCustomer')}</p>
+                  <p className="text-[11px] text-slate-500">{t('auth.demoCustomerSub')}</p>
+                </button>
+                <button
+                  type="button"
+                  data-testid="demo-cancel"
+                  onClick={() => { setDemoView(null); setDemoRole(null); }}
+                  className="w-full text-xs font-semibold text-slate-500 hover:text-slate-700 py-1"
+                >
+                  {t('common.cancel')}
+                </button>
+              </div>
+            )}
+
+            {demoView === 'transition' && (
+              <div className="rounded-2xl border-2 border-amber-300 bg-white p-5 text-center space-y-2" data-testid="demo-transition">
+                <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center mx-auto">
+                  <Sparkles className="w-6 h-6 text-amber-600" aria-hidden="true" />
+                </div>
+                <p className="text-base font-extrabold text-slate-800">{t('auth.demoTransitionTitle')}</p>
+                <p className="text-xs text-slate-500 leading-snug">{t('auth.demoTransitionSub')}</p>
+                <button
+                  type="button"
+                  data-testid="enter-demo"
+                  onClick={() => {
+                    enterDemo(demoRole);
+                    navigate(demoRole === 'merchant' ? '/dashboard' : '/c', { replace: true });
+                  }}
+                  className="w-full mt-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors"
+                >
+                  {t('auth.enterDemo')}
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <>

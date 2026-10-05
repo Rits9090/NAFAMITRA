@@ -1,4 +1,19 @@
 export default {
+  demo: {
+    badge: 'DEMO MODE',
+    exit: 'Exit Demo',
+    blocked: 'Demo mode — this action is available in a real account.',
+  },
+  err: {
+    network: 'Unable to connect right now. Please check your internet connection and try again.',
+    timeout: 'The request took too long. Please try again.',
+    unavailable: 'The service is temporarily unavailable. Please try again in a moment.',
+    rateLimited: 'Too many OTP requests. Please wait a little before trying again.',
+    otpInvalid: 'The OTP is incorrect or has expired. Please request a new OTP.',
+    sessionExpired: 'Your session has expired. Please sign in again.',
+    forbidden: 'You do not have permission to do this.',
+    generic: 'Something went wrong. Please try again.',
+  },
   common: {
     save: 'Save', cancel: 'Cancel', close: 'Close', search: 'Search', add: 'Add',
     edit: 'Edit', delete: 'Delete', back: 'Back', next: 'Next', loading: 'Loading…',
@@ -34,6 +49,18 @@ export default {
     customerWelcomeBack: 'Welcome back to your Nafa.',
     changeJourney: 'Change',
     journeyNote: 'One account can be both — your data stays in one place.',
+    demoOr: 'or',
+    exploreDemo: 'Explore Demo',
+    exploreDemoSub: 'Explore NafaMitra without creating an account.',
+    demoChooserTitle: 'Choose a Demo',
+    demoChooserSub: 'Explore the real screens with sample data.',
+    demoRetailer: 'Retailer Demo',
+    demoRetailerSub: 'Billing, customers, stock & reports',
+    demoCustomer: 'Customer Demo',
+    demoCustomerSub: 'My Nafa, purchases & धनलाभ',
+    demoTransitionTitle: "You're entering Demo Mode",
+    demoTransitionSub: 'Explore NafaMitra using sample business data.',
+    enterDemo: 'Enter Demo',
 
     welcome: 'Welcome to NafaMitra', subtitle: 'Your digital business companion',
     iAmShop: "I'm a Shop Owner", iAmShopSub: 'Grow profit and business',

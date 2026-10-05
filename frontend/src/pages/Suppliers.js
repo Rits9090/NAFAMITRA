@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { Truck, Plus, X, ChevronRight, Package, IndianRupee } from 'lucide-react';
 import api, { errMsg } from '@/lib/api';
 import { useI18n } from '@/i18n';
+import { shortDate } from '@/lib/dates';
 
 
 export default function Suppliers() {

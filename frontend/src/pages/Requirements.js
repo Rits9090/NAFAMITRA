@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import api, { errMsg } from '@/lib/api';
 import { useI18n } from '@/i18n';
 import { fmt } from '@/lib/money';
+import { shortDate } from '@/lib/dates';
 
 const STATUS_META = {
   open: { labelKey: 'reqm.stOpen', cls: 'bg-blue-50 text-blue-700 border-blue-200' },

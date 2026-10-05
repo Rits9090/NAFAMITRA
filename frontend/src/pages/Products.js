@@ -27,14 +27,8 @@ export default function Products() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
 
-  // Mount-only initial load (filters start empty; debounced effect below handles changes).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { loadProducts(); loadCategories(); }, []);
-  useEffect(() => {
-    const t = setTimeout(() => loadProducts(), 400);
-    return () => clearTimeout(t);
-  }, [loadProducts]);
-
+  // Loaders are declared BEFORE the effects that reference them — dep arrays
+  // evaluate at render time (TDZ crash otherwise).
   const loadProducts = useCallback(async () => {
     setLoading(true);
     try {
@@ -52,6 +46,14 @@ export default function Products() {
     const { data } = await api.get(`/products/categories`);
     setCategories(data || []);
   };
+
+  // Mount-only initial load (filters start empty; debounced effect below handles changes).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadProducts(); loadCategories(); }, []);
+  useEffect(() => {
+    const t = setTimeout(() => loadProducts(), 400);
+    return () => clearTimeout(t);
+  }, [loadProducts]);
 
   const openEdit = (p) => {
     setEditProduct(p);

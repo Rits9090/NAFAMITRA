@@ -38,13 +38,15 @@ const mobileNav = [
 ];
 
 export default function Layout() {
-  const { user, activeShop, shops, role, kind, chooseShop, logout } = useAuth();
+  const { user, activeShop, shops, role, kind, chooseShop, logout, demo, exitDemo } = useAuth();
   const { t } = useI18n();
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
 
   const handleLogout = () => { logout(); navigate('/auth'); };
+
+  const handleExitDemo = () => { exitDemo(); navigate('/auth', { replace: true }); };
 
   const firstName = (user?.name || '').split(' ')[0] || t('nav.myShop');
 
@@ -180,6 +182,21 @@ export default function Layout() {
               </span>
             </div>
             <div className="flex items-center gap-2">
+              {demo && (
+                <div className="flex items-center gap-1.5" data-testid="demo-badge">
+                  <span className="text-[10px] font-extrabold tracking-wider bg-amber-100 text-amber-800 border border-amber-300 px-2 py-1 rounded-md">
+                    {t('demo.badge')}
+                  </span>
+                  <button
+                    type="button"
+                    data-testid="exit-demo"
+                    onClick={handleExitDemo}
+                    className="text-[11px] font-bold text-slate-500 hover:text-red-600 border border-slate-200 hover:border-red-300 px-2 py-1 rounded-md transition-colors"
+                  >
+                    {t('demo.exit')}
+                  </button>
+                </div>
+              )}
               <Link
                 to="/billing"
                 className="hidden sm:flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-sm font-semibold transition-colors"
