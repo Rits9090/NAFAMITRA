@@ -1,227 +1,435 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useSearchParams, useParams, Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Users, Plus, Search, Phone, Crown, Star, Award, X, ChevronRight, ShoppingBag, CreditCard, Gift } from 'lucide-react';
+import { track, ACTIVATION } from '@/lib/analytics';
+import api, { errMsg } from '@/lib/api';
+import { useI18n } from '@/i18n';
+import { fmt } from '@/lib/money';
+import { shortDate } from '@/lib/dates';
 import { CUSTOMERS } from '@/constants/testIds';
+import {
+  Users, Plus, Search, X, ChevronRight, Phone, ShoppingBag, CreditCard,
+  Gift, StickyNote, User, Inbox, Calendar,
+} from 'lucide-react';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const SEGMENTS = [
+  { key: 'all', labelKey: 'customers.segmentAll' },
+  { key: 'new', labelKey: 'customers.segmentNew' },
+  { key: 'repeat', labelKey: 'customers.segmentRepeat' },
+  { key: 'high_value', labelKey: 'customers.segmentHighValue' },
+  { key: 'credit_due', labelKey: 'customers.segmentCreditDue' },
+  { key: 'inactive', labelKey: 'customers.segmentInactive' },
+];
 
-const MEMBERSHIP_CONFIG = {
-  bronze: { color: 'amber', icon: Award, label: 'Bronze' },
-  silver: { color: 'slate', icon: Star, label: 'Silver' },
-  gold: { color: 'yellow', icon: Crown, label: 'Gold' },
-  vip: { color: 'purple', icon: Crown, label: 'VIP' },
-};
+function NewCustomerForm({ onClose, onCreated, initial = {} }) {
+  const { t, lang } = useI18n();
+  const [form, setForm] = useState({ name: initial.name || '', phone: initial.phone || '', notes: '' });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-export default function Customers() {
-  const [customers, setCustomers] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [showAdd, setShowAdd] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
-  const [form, setForm] = useState({ name: '', phone: '', email: '', birthday: '', notes: '' });
-  const [submitting, setSubmitting] = useState(false);
-  const [customerDetail, setCustomerDetail] = useState(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
-
-  useEffect(() => { loadCustomers(); }, []);
-  useEffect(() => {
-    const timer = setTimeout(() => loadCustomers(), 400);
-    return () => clearTimeout(timer);
-  }, [search]);
-
-  const loadCustomers = async () => {
+  const save = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim()) return setError(t('customers.nameRequired'));
     setLoading(true);
+    setError(null);
     try {
-      const { data } = await axios.get(`${API}/customers?search=${search}&limit=50`);
-      setCustomers(data.customers || []);
-      setTotal(data.total || 0);
+      const { data } = await api.post('/customers', {
+        name: form.name.trim(),
+        phone: form.phone.trim() || null,
+        notes: form.notes.trim() || null,
+      });
+      track(ACTIVATION.CUSTOMER_CREATED, { has_phone: !!form.phone.trim() });
+      onCreated(data);
+    } catch (err) {
+      setError(errMsg(err));
     } finally {
       setLoading(false);
     }
   };
 
-  const openCustomer = async (c) => {
-    setSelectedCustomer(c);
-    setLoadingDetail(true);
-    try {
-      const { data } = await axios.get(`${API}/customers/${c.id}`);
-      setCustomerDetail(data);
-    } finally {
-      setLoadingDetail(false);
-    }
-  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
+      <form onSubmit={save} className="relative bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl p-5 animate-fadeInUp" role="dialog" aria-label={t('customers.newCustomerTitle')}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-slate-800">{t('customers.newCustomerTitle')}</h3>
+          <button type="button" onClick={onClose} aria-label={t('common.close')}><X className="w-5 h-5 text-slate-400" /></button>
+        </div>
+        <label className="block text-xs font-semibold text-slate-500 mb-1" htmlFor="cust-name">{t('common.name')} *</label>
+        <input id="cust-name" data-testid={CUSTOMERS.nameInput} value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })} autoFocus
+          className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/40" />
+        <label className="block text-xs font-semibold text-slate-500 mb-1" htmlFor="cust-phone">{t('common.phone')}</label>
+        <input id="cust-phone" data-testid={CUSTOMERS.phoneInput} type="tel" inputMode="tel" value={form.phone}
+          onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          placeholder={t('auth.phonePlaceholder')}
+          className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/40" />
+        <label className="block text-xs font-semibold text-slate-500 mb-1" htmlFor="cust-notes">{t('common.notes')} ({t('common.optional')})</label>
+        <textarea id="cust-notes" value={form.notes} rows={2}
+          onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/40" />
+        {error && <div role="alert" className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700 mb-3">{error}</div>}
+        <button type="submit" data-testid={CUSTOMERS.saveBtn} disabled={loading}
+          className="w-full py-3.5 rounded-xl bg-emerald-600 text-white font-bold text-sm disabled:opacity-50">
+          {loading ? t('common.loading') : t('common.save')}
+        </button>
+      </form>
+    </div>
+  );
+}
 
-  const handleAdd = async (e) => {
-    e.preventDefault();
-    if (!form.name) return toast.error('Name is required');
-    setSubmitting(true);
-    try {
-      await axios.post(`${API}/customers`, form);
-      toast.success(`${form.name} added successfully!`);
-      setShowAdd(false);
-      setForm({ name: '', phone: '', email: '', birthday: '', notes: '' });
-      loadCustomers();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to add customer');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+export function CustomersList() {
+  const { t, lang } = useI18n();
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const [customers, setCustomers] = useState([]);
+  const [segment, setSegment] = useState('all');
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(params.get('add') === '1');
 
-  const fmt = (n) => `₹${(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get('/customers', {
+        params: { segment, search: search || undefined, limit: 50 },
+      });
+      setCustomers(data.customers || []);
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [segment, search]);
+
+  useEffect(() => {
+    const id = setTimeout(load, search ? 300 : 0);
+    return () => clearTimeout(id);
+  }, [load, search]);
 
   return (
-    <div data-testid={CUSTOMERS.page} className="space-y-4 animate-fadeInUp">
+    <div className="max-w-2xl mx-auto space-y-4 animate-fadeInUp" data-testid={CUSTOMERS.page}>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-800" style={{fontFamily:'Outfit,sans-serif'}}>Customers</h1>
-          <p className="text-slate-500 text-sm">{total} total customers</p>
+          <h1 className="text-xl font-extrabold text-slate-800" style={{ fontFamily: 'Outfit,sans-serif' }}>{t('customers.title')}</h1>
+          <p className="text-xs text-slate-500">{t('customers.sub')}</p>
         </div>
-        <button data-testid={CUSTOMERS.addBtn} onClick={() => setShowAdd(true)} className="flex items-center gap-2 bg-emerald-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-emerald-600 transition-colors shadow-sm">
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Add Customer</span>
+        <button
+          data-testid={CUSTOMERS.addBtn}
+          onClick={() => setShowAdd(true)}
+          className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2.5 rounded-xl text-sm font-bold"
+        >
+          <Plus className="w-4 h-4" /> {t('common.add')}
         </button>
       </div>
 
-      {/* Search */}
       <div className="relative">
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input data-testid={CUSTOMERS.searchInput} value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or phone..." className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 shadow-sm" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <input
+          data-testid={CUSTOMERS.searchInput}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t('customers.search')}
+          className="w-full pl-9 pr-4 py-3 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+        />
       </div>
 
-      {/* Customer List */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1" role="tablist" aria-label="Segments">
+        {SEGMENTS.map((s) => (
+          <button
+            key={s.key}
+            role="tab"
+            aria-selected={segment === s.key}
+            onClick={() => setSegment(s.key)}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
+              segment === s.key ? 'bg-emerald-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}
+          >
+            {t(s.labelKey)}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {[...Array(6)].map((_, i) => <div key={i} className="h-24 bg-slate-200 rounded-xl animate-pulse" />)}
+        <div className="space-y-2" aria-busy="true">
+          {[...Array(6)].map((_, i) => <div key={i} className="h-16 bg-slate-200 rounded-xl animate-pulse" />)}
+        </div>
+      ) : customers.length === 0 ? (
+        <div className="bg-white rounded-xl border border-slate-100 py-12 text-center" data-testid="customers-empty">
+          <Users className="w-10 h-10 text-slate-300 mx-auto" />
+          <p className="text-sm font-semibold text-slate-600 mt-3">{t('customers.empty')}</p>
+          <p className="text-xs text-slate-400 px-6">{t('customers.emptySub')}</p>
         </div>
       ) : (
-        <div data-testid={CUSTOMERS.list} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {customers.map(c => {
-            const mc = MEMBERSHIP_CONFIG[c.membership_level] || MEMBERSHIP_CONFIG.bronze;
-            const MIcon = mc.icon;
-            return (
-              <div key={c.id} data-testid={CUSTOMERS.card} onClick={() => openCustomer(c)} className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 cursor-pointer hover:border-emerald-200 hover:shadow-md transition-all card-hover">
-                <div className="flex items-start gap-3">
-                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center flex-shrink-0 text-white font-bold text-lg">
-                    {c.name[0].toUpperCase()}
+        <ul className="space-y-2" data-testid={CUSTOMERS.list}>
+          {customers.map((c) => (
+            <li key={c.id}>
+              <button
+                data-testid={CUSTOMERS.card}
+                onClick={() => navigate(`/customers/${c.id}`)}
+                className="w-full bg-white border border-slate-100 rounded-xl px-4 py-3 flex items-center justify-between gap-3 hover:border-emerald-200 text-left shadow-sm"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                    <span className="text-sm font-bold text-emerald-700">{(c.name || '?')[0].toUpperCase()}</span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <p className="font-bold text-slate-800 text-sm">{c.name}</p>
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold bg-${mc.color === 'yellow' ? 'yellow' : mc.color === 'purple' ? 'purple' : mc.color === 'slate' ? 'slate' : 'amber'}-50 text-${mc.color === 'yellow' ? 'yellow' : mc.color === 'purple' ? 'purple' : mc.color === 'slate' ? 'slate' : 'amber'}-600`}>
-                        {mc.label}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-400 mt-0.5">{c.phone} · {c.customer_id}</p>
-                    <div className="flex items-center gap-3 mt-2 text-xs">
-                      <span className="text-emerald-600 font-mono font-semibold">{fmt(c.total_purchases)}</span>
-                      <span className="text-slate-400">{c.total_visits} visits</span>
-                      <span className="text-purple-600 font-semibold">{c.loyalty_points?.toFixed(0)} pts</span>
-                    </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-700 truncate">{c.name}</p>
+                    <p className="text-[11px] text-slate-400 truncate">
+                      {c.phone} · {c.nm_id}
+                      {c.is_repeat && <span className="text-emerald-600 font-semibold"> · {t('customers.segmentRepeat')}</span>}
+                    </p>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-slate-300 mt-1" />
                 </div>
-              </div>
-            );
-          })}
-        </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-sm font-bold font-mono text-slate-700">{fmt(c.total_spend_paise || 0)}</p>
+                  <p className={`text-[11px] font-semibold ${(c.credit_due_paise || 0) > 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                    {(c.credit_due_paise || 0) > 0 ? fmt(c.credit_due_paise) : `🪙 ${c.loyalty_points || 0}`}
+                  </p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-300 flex-shrink-0" />
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
 
-      {/* Add Customer Modal */}
       {showAdd && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-fadeInUp">
-            <div className="flex items-center justify-between p-5 border-b border-slate-100">
-              <h3 className="font-bold text-slate-800" style={{fontFamily:'Outfit,sans-serif'}}>Add New Customer</h3>
-              <button onClick={() => setShowAdd(false)} className="p-1.5 rounded-lg hover:bg-slate-100"><X className="w-4 h-4 text-slate-400" /></button>
+        <NewCustomerForm
+          onClose={() => { setShowAdd(false); setParams({}); }}
+          onCreated={(c) => {
+            setShowAdd(false);
+            setParams({});
+            toast.success(`${c.name} ✓`);
+            navigate(`/customers/${c.id}`);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+const TABS = [
+  { key: 'overview', labelKey: 'customers.overview' },
+  { key: 'bills', labelKey: 'nav.bills' },
+  { key: 'credit', labelKey: 'customers.creditTab' },
+  { key: 'loyalty', labelKey: 'customers.dhanlabhTab' },
+  { key: 'notes', labelKey: 'customers.notesTab' },
+];
+
+export function CustomerDetail() {
+  const { id } = useParams();
+  const { t, lang } = useI18n();
+  const navigate = useNavigate();
+  const [tab, setTab] = useState('overview');
+  const [data, setData] = useState(null);
+  const [notes, setNotes] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await api.get(`/customers/${id}`);
+      setData(data);
+      setNotes(data.customer?.notes || '');
+    } catch (e) {
+      setError(errMsg(e, t('customers.empty')));
+    } finally {
+      setLoading(false);
+    }
+  }, [id, t]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const saveNotes = async () => {
+    try {
+      await api.put(`/customers/${id}`, { notes });
+      toast.success(t('customers.notesSaved'));
+    } catch (e) { toast.error(errMsg(e)); }
+  };
+
+  if (loading) return <div className="max-w-2xl mx-auto space-y-3"><div className="h-40 bg-slate-200 rounded-2xl animate-pulse" /></div>;
+  if (error || !data) {
+    return (
+      <div className="max-w-2xl mx-auto text-center py-16" role="alert">
+        <p className="text-sm text-slate-600">{error}</p>
+        <button onClick={() => navigate('/customers')} className="mt-4 px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold">← {t('customers.title')}</button>
+      </div>
+    );
+  }
+
+  const c = data.customer;
+  const since = c.customer_since ? shortDate(c.customer_since, lang) : t('customers.never');
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-4 animate-fadeInUp">
+      <button onClick={() => navigate('/customers')} className="text-sm text-slate-500 hover:text-slate-700">← {t('customers.title')}</button>
+
+      {/* Header card */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4" data-testid="customer-detail">
+        <div className="flex items-center gap-3">
+          <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+            <span className="text-xl font-bold text-emerald-700">{(c.name || '?')[0].toUpperCase()}</span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg font-extrabold text-slate-800 truncate">{c.name}</h1>
+            <p className="text-sm text-slate-500 flex items-center gap-1">
+              <Phone className="w-3.5 h-3.5" /> {c.phone || '—'} <span className="text-slate-300">·</span> {c.nm_id}
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-2 mt-4 text-center">
+          <div className="bg-slate-50 rounded-xl py-2">
+            <p className="text-base font-extrabold font-mono text-slate-800">{c.purchase_count || 0}</p>
+            <p className="text-[10px] text-slate-500 font-semibold">{t('customers.purchases')}</p>
+          </div>
+          <div className="bg-slate-50 rounded-xl py-2">
+            <p className="text-base font-extrabold font-mono text-slate-800">{fmt(c.total_spend_paise || 0)}</p>
+            <p className="text-[10px] text-slate-500 font-semibold">{t('customers.totalSpend')}</p>
+          </div>
+          <div className="bg-slate-50 rounded-xl py-2">
+            <p className={`text-base font-extrabold font-mono ${(c.credit_due_paise || 0) > 0 ? 'text-red-600' : 'text-slate-800'}`}>
+              {fmt(c.credit_due_paise || 0)}
+            </p>
+            <p className="text-[10px] text-slate-500 font-semibold">{t('customers.creditTab')}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 bg-slate-100 p-1 rounded-xl overflow-x-auto" role="tablist">
+        {TABS.map(({ key, labelKey }) => (
+          <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
+            className={`flex-1 min-w-max px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${
+              tab === key ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500'}`}>
+            {t(labelKey)}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'overview' && (
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm divide-y divide-slate-50">
+          <InfoRow icon={Calendar} label={t('customers.since')} value={since} />
+          <InfoRow icon={ShoppingBag} label={t('customers.purchases')} value={String(c.purchase_count || 0)} />
+          <InfoRow icon={User} label={t('customers.avgBill')} value={fmt(c.avg_bill_paise || 0)} />
+          <InfoRow icon={CreditCard} label={t('customers.lastPurchase')}
+            value={c.last_purchase_at ? shortDate(c.last_purchase_at, lang) : t('customers.never')} />
+          <InfoRow icon={Gift} label={t('customers.dhanlabhTab')} value={`${c.loyalty_points || 0} 🪙`} />
+        </div>
+      )}
+
+      {tab === 'bills' && (
+        <div className="space-y-2">
+          {(data.bills || []).length === 0 && (data.legacy_sales || []).length === 0 && (
+            <p className="text-center text-sm text-slate-400 py-8">{t('billsList.empty')}</p>
+          )}
+          {(data.bills || []).map((b) => (
+            <Link key={b.id} to={`/bills/${b.id}`}
+              className="bg-white border border-slate-100 rounded-xl px-4 py-3 flex items-center justify-between hover:border-emerald-200">
+              <div>
+                <p className="text-sm font-semibold text-slate-700">{b.invoice_number}</p>
+                <p className="text-[11px] text-slate-400">{b.created_at ? shortDate(b.created_at, lang) : ''}</p>
+              </div>
+              <span className={`text-sm font-bold font-mono ${b.status === 'VOIDED' ? 'text-red-500 line-through' : 'text-slate-800'}`}>
+                {fmt(b.total_paise || 0)}
+              </span>
+            </Link>
+          ))}
+          {(data.legacy_sales || []).map((s) => (
+            <div key={s.id} className="bg-white border border-slate-100 rounded-xl px-4 py-3 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-700">{s.invoice_number}</p>
+                <p className="text-[11px] text-slate-400">{s.created_at ? shortDate(s.created_at, lang) : ''}</p>
+              </div>
+              <span className="text-sm font-bold font-mono text-slate-800">₹{Number(s.total_amount || 0).toFixed(0)}</span>
             </div>
-            <form onSubmit={handleAdd} className="p-5 space-y-3">
-              <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Full Name *</label>
-                <input data-testid={CUSTOMERS.nameInput} value={form.name} onChange={e => setForm(p => ({...p, name: e.target.value}))} placeholder="Customer name" required className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Phone</label>
-                <input data-testid={CUSTOMERS.phoneInput} value={form.phone} onChange={e => setForm(p => ({...p, phone: e.target.value}))} placeholder="10-digit mobile number" className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
+          ))}
+        </div>
+      )}
+
+      {tab === 'credit' && (
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-semibold text-slate-600">{t('credit.outstanding')}</span>
+            <span className={`text-xl font-extrabold font-mono ${(c.credit_due_paise || 0) > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+              {fmt(c.credit_due_paise || 0)}
+            </span>
+          </div>
+          <div className="space-y-1.5 max-h-72 overflow-y-auto">
+            {(data.credit_transactions || []).map((tx) => (
+              <div key={tx.id} className="flex items-center justify-between text-sm py-1.5 border-b border-slate-50 last:border-0">
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Email</label>
-                  <input value={form.email} onChange={e => setForm(p => ({...p, email: e.target.value}))} placeholder="Email" className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
+                  <p className="text-slate-700 font-medium">{t(`credit.type${tx.type.charAt(0) + tx.type.slice(1).toLowerCase()}`)}</p>
+                  <p className="text-[11px] text-slate-400">{tx.created_at ? shortDate(tx.created_at, lang) : ''}</p>
                 </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Birthday</label>
-                  <input type="date" value={form.birthday} onChange={e => setForm(p => ({...p, birthday: e.target.value}))} className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
-                </div>
+                <span className={`font-mono font-bold ${tx.delta_paise > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                  {tx.delta_paise > 0 ? '+' : ''}{fmt(tx.delta_paise || 0)}
+                </span>
               </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Notes</label>
-                <textarea value={form.notes} onChange={e => setForm(p => ({...p, notes: e.target.value}))} placeholder="Any notes..." rows={2} className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 resize-none" />
-              </div>
-              <div className="flex gap-2 pt-1">
-                <button type="button" onClick={() => setShowAdd(false)} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50">Cancel</button>
-                <button data-testid={CUSTOMERS.saveBtn} type="submit" disabled={submitting} className="flex-1 py-3 rounded-xl bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 disabled:opacity-60 flex items-center justify-center gap-1">
-                  {submitting ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Add Customer'}
-                </button>
-              </div>
-            </form>
+            ))}
+            {(data.credit_transactions || []).length === 0 && (
+              <p className="text-center text-sm text-slate-400 py-4">{t('credit.empty')}</p>
+            )}
           </div>
         </div>
       )}
 
-      {/* Customer Detail Modal */}
-      {selectedCustomer && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl animate-fadeInUp max-h-[85vh] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-slate-100">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold">
-                  {selectedCustomer.name[0]}
-                </div>
-                <div>
-                  <p className="font-bold text-slate-800">{selectedCustomer.name}</p>
-                  <p className="text-xs text-slate-400">{selectedCustomer.customer_id} · {selectedCustomer.phone}</p>
-                </div>
-              </div>
-              <button onClick={() => { setSelectedCustomer(null); setCustomerDetail(null); }} className="p-1.5 rounded-lg hover:bg-slate-100"><X className="w-4 h-4 text-slate-400" /></button>
-            </div>
-            <div className="overflow-y-auto flex-1 p-4 space-y-4">
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { label: 'Total Spent', value: fmt(selectedCustomer.total_purchases), icon: ShoppingBag, color: 'emerald' },
-                  { label: 'Loyalty Pts', value: selectedCustomer.loyalty_points?.toFixed(0), icon: Gift, color: 'purple' },
-                  { label: 'Udhaar', value: fmt(customerDetail?.udhaar?.outstanding || 0), icon: CreditCard, color: 'red' }
-                ].map(s => (
-                  <div key={s.label} className={`bg-${s.color}-50 rounded-xl p-3 text-center`}>
-                    <p className={`text-lg font-bold font-mono text-${s.color}-700`}>{s.value}</p>
-                    <p className={`text-xs text-${s.color}-600 font-semibold mt-0.5`}>{s.label}</p>
-                  </div>
-                ))}
-              </div>
-              {loadingDetail ? (
-                <div className="flex justify-center py-4"><div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /></div>
-              ) : customerDetail?.recent_sales?.length > 0 && (
-                <div>
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Recent Purchases</p>
-                  <div className="space-y-2">
-                    {customerDetail.recent_sales.map(s => (
-                      <div key={s.id} className="flex items-center justify-between bg-slate-50 rounded-xl p-3">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-700">{s.invoice_number}</p>
-                          <p className="text-xs text-slate-400">{new Date(s.created_at).toLocaleDateString('en-IN')} · {s.payment_mode}</p>
-                        </div>
-                        <span className="text-sm font-bold font-mono text-slate-700">₹{s.total_amount?.toFixed(0)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+      {tab === 'loyalty' && (
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4">
+          <div className="text-center py-3">
+            <p className="text-3xl font-extrabold font-mono text-violet-700">{c.loyalty_points || 0}</p>
+            <p className="text-xs text-slate-500 font-semibold">🪙 {t('app.dhanlabh')} · {c.nm_id}</p>
           </div>
+          <div className="space-y-1.5 max-h-72 overflow-y-auto">
+            {(data.loyalty_transactions || []).map((tx) => (
+              <div key={tx.id} className="flex items-center justify-between text-sm py-1.5 border-b border-slate-50 last:border-0">
+                <div>
+                  <p className="text-slate-700 font-medium">{tx.type}</p>
+                  <p className="text-[11px] text-slate-400">{tx.note || (tx.created_at ? shortDate(tx.created_at, lang) : '')}</p>
+                </div>
+                <span className={`font-mono font-bold ${(tx.delta || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {(tx.delta || 0) >= 0 ? '+' : ''}{tx.delta ?? tx.points}
+                </span>
+              </div>
+            ))}
+            {(data.loyalty_transactions || []).length === 0 && (
+              <p className="text-center text-sm text-slate-400 py-4">{t('loyalty.empty')}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {tab === 'notes' && (
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-3">
+          <label htmlFor="cust-detail-notes" className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+            <StickyNote className="w-3.5 h-3.5" /> {t('customers.notesTab')}
+          </label>
+          <textarea
+            id="cust-detail-notes"
+            rows={4}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="…"
+            className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+          />
+          <button onClick={saveNotes} data-testid="save-notes"
+            className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-bold">
+            {t('customers.saveNotes')}
+          </button>
         </div>
       )}
     </div>
   );
 }
+
+function InfoRow({ icon: Icon, label, value }) {
+  return (
+    <div className="flex items-center justify-between px-4 py-3">
+      <span className="text-sm text-slate-500 flex items-center gap-2"><Icon className="w-4 h-4 text-slate-400" /> {label}</span>
+      <span className="text-sm font-semibold text-slate-700 font-mono">{value}</span>
+    </div>
+  );
+}
+
+export default CustomersList;

@@ -12,26 +12,36 @@ class ProductCreate(BaseModel):
     name: str
     category: str
     selling_price: float
-    purchase_price: float
+    purchase_price: float = 0
+    min_selling_price: Optional[float] = None  # safe price for profit protection
     stock_quantity: int = 0
     low_stock_threshold: int = 5
     sku: Optional[str] = None
+    barcode: Optional[str] = None
     brand: Optional[str] = None
     description: Optional[str] = None
     unit: str = 'piece'
     image_url: Optional[str] = None
+    is_active: bool = True
+    supplier_id: Optional[str] = None   # P1: link product to a supplier
+    expiry_date: Optional[str] = None   # P1: ISO date, optional (FMCG etc.)
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
     category: Optional[str] = None
     selling_price: Optional[float] = None
     purchase_price: Optional[float] = None
+    min_selling_price: Optional[float] = None
     stock_quantity: Optional[int] = None
     low_stock_threshold: Optional[int] = None
     sku: Optional[str] = None
+    barcode: Optional[str] = None
     brand: Optional[str] = None
     description: Optional[str] = None
     unit: Optional[str] = None
+    is_active: Optional[bool] = None
+    supplier_id: Optional[str] = None
+    expiry_date: Optional[str] = None
 
 class StockUpdate(BaseModel):
     quantity: int
@@ -52,7 +62,8 @@ async def list_products(
     if search:
         query['$or'] = [
             {'name': {'$regex': search, '$options': 'i'}},
-            {'sku': {'$regex': search, '$options': 'i'}}
+            {'sku': {'$regex': search, '$options': 'i'}},
+            {'barcode': {'$regex': search, '$options': 'i'}}
         ]
     if category:
         query['category'] = category
@@ -109,15 +120,21 @@ async def create_product(req: ProductCreate, user: dict = Depends(require_busine
         'description': req.description,
         'selling_price': req.selling_price,
         'purchase_price': req.purchase_price,
+        'min_selling_price': req.min_selling_price,
+        'barcode': req.barcode,
         'stock_quantity': req.stock_quantity,
         'low_stock_threshold': req.low_stock_threshold,
         'unit': req.unit,
         'image_url': req.image_url,
-        'is_active': True,
+        'is_active': req.is_active,
+        'supplier_id': req.supplier_id,
+        'expiry_date': req.expiry_date,
         'created_at': now
     }
     await db.products.insert_one(doc)
     doc.pop('_id', None)
+    from audit import log_action
+    await log_action(bid, user['user_id'], 'product_created', 'product', doc['id'])
     return doc
 
 @router.get("/{product_id}")
@@ -131,9 +148,17 @@ async def get_product(product_id: str, user: dict = Depends(require_business)):
 @router.put("/{product_id}")
 async def update_product(product_id: str, req: ProductUpdate, user: dict = Depends(require_business)):
     bid = user['business_id']
+    existing = await db.products.find_one({'id': product_id, 'business_id': bid}, {'_id': 0})
+    if not existing:
+        raise HTTPException(404, "Product not found")
     updates = {k: v for k, v in req.model_dump().items() if v is not None}
     updates['updated_at'] = datetime.now(timezone.utc).isoformat()
     await db.products.update_one({'id': product_id, 'business_id': bid}, {'$set': updates})
+    if 'selling_price' in updates and updates['selling_price'] != existing.get('selling_price'):
+        from audit import log_action
+        await log_action(bid, user['user_id'], 'product_price_changed', 'product', product_id,
+                         {'old_value': existing.get('selling_price'),
+                          'new_value': updates['selling_price']})
     return await db.products.find_one({'id': product_id, 'business_id': bid}, {'_id': 0})
 
 @router.post("/{product_id}/stock")

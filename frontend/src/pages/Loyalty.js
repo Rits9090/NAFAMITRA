@@ -1,146 +1,162 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { Gift, Crown, Star, Award, TrendingUp, Users } from 'lucide-react';
-
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
-
-const MEMBERSHIP_BADGES = {
-  bronze: { Icon: Award, color: 'amber', gradient: 'from-amber-400 to-orange-400' },
-  silver: { Icon: Star, color: 'slate', gradient: 'from-slate-400 to-slate-500' },
-  gold: { Icon: Crown, color: 'yellow', gradient: 'from-yellow-400 to-amber-400' },
-  vip: { Icon: Crown, color: 'purple', gradient: 'from-purple-500 to-indigo-500' },
-};
+import React, { useState, useEffect, useCallback } from 'react';
+import { toast } from 'sonner';
+import api, { errMsg } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
+import { useI18n } from '@/i18n';
+import { fmt } from '@/lib/money';
+import { Gift, Save, Users, ScrollText, Lock } from 'lucide-react';
+import { dateTime } from '@/lib/dates';
 
 export default function Loyalty() {
-  const [leaderboard, setLeaderboard] = useState([]);
-  const [rules, setRules] = useState({});
-  const [transactions, setTransactions] = useState([]);
+  const { t, lang } = useI18n();
+  const { role } = useAuth();
+  const [rules, setRules] = useState(null);
+  const [balances, setBalances] = useState([]);
+  const [ledger, setLedger] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const isOwner = role === 'owner';
 
-  useEffect(() => { loadData(); }, []);
-
-  const loadData = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [l, r, t] = await Promise.all([
-        axios.get(`${API}/loyalty/leaderboard`),
-        axios.get(`${API}/loyalty/rules`),
-        axios.get(`${API}/loyalty/transactions`)
+      const [r, l, tx] = await Promise.all([
+        api.get('/loyalty/rules'),
+        api.get('/loyalty/leaderboard'),
+        api.get('/loyalty/transactions'),
       ]);
-      setLeaderboard(l.data || []);
-      setRules(r.data || {});
-      setTransactions(t.data || []);
+      setRules(r.data);
+      setBalances(Array.isArray(l.data) ? l.data : []);
+      setLedger(Array.isArray(tx.data) ? tx.data : []);
+    } catch (e) {
+      toast.error(errMsg(e));
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const saveRules = async (e) => {
+    e.preventDefault();
+    if (!isOwner) return toast.error(t('loyalty.ownerOnly'));
+    setSaving(true);
+    try {
+      await api.put('/loyalty/rules', {
+        points_per_100: parseInt(rules.points_per_100, 10) || 0,
+        redemption_value: parseFloat(rules.redemption_value) || 0,
+        loyalty_enabled: rules.loyalty_enabled !== false,
+      });
+      toast.success(t('loyalty.rulesSaved'));
+      load();
+    } catch (err) {
+      toast.error(errMsg(err));
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const tierColors = { bronze: 'bg-amber-50 border-amber-200', silver: 'bg-slate-50 border-slate-200', gold: 'bg-yellow-50 border-yellow-200', vip: 'bg-purple-50 border-purple-200' };
+  if (loading) {
+    return <div className="max-w-2xl mx-auto space-y-3"><div className="h-40 bg-slate-200 rounded-2xl animate-pulse" /><div className="h-64 bg-slate-200 rounded-2xl animate-pulse" /></div>;
+  }
 
   return (
-    <div className="space-y-4 animate-fadeInUp">
+    <div className="max-w-2xl mx-auto space-y-4 animate-fadeInUp">
       <div>
-        <h1 className="text-2xl font-extrabold text-slate-800" style={{fontFamily:'Outfit,sans-serif'}}>Loyalty & Rewards</h1>
-        <p className="text-slate-500 text-sm">Customer points and membership tiers</p>
+        <h1 className="text-xl font-extrabold text-slate-800" style={{ fontFamily: 'Outfit,sans-serif' }}>🪙 {t('loyalty.title')}</h1>
+        <p className="text-xs text-slate-500">{t('loyalty.sub')}</p>
       </div>
 
-      {/* Loyalty Rules */}
-      <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border border-purple-200 p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Gift className="w-5 h-5 text-purple-600" />
-          <h3 className="font-bold text-purple-800" style={{fontFamily:'Outfit,sans-serif'}}>Loyalty Rules</h3>
+      {/* Rules */}
+      <form onSubmit={saveRules} className="bg-gradient-to-r from-violet-50 to-indigo-50 border border-violet-200 rounded-2xl p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold text-violet-800 flex items-center gap-1.5"><Gift className="w-4 h-4" /> {t('loyalty.rules')}</h2>
+          {!isOwner && <span className="text-[10px] font-semibold text-violet-500 flex items-center gap-1"><Lock className="w-3 h-3" /> {t('loyalty.ownerOnly')}</span>}
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: 'Points per ₹100', value: rules.points_per_100 || 1 },
-            { label: 'Silver at', value: `${rules.silver_threshold || 500} pts` },
-            { label: 'Gold at', value: `${rules.gold_threshold || 2000} pts` },
-            { label: 'VIP at', value: `${rules.vip_threshold || 5000} pts` },
-          ].map(r => (
-            <div key={r.label} className="bg-white/80 rounded-xl p-3 text-center">
-              <p className="text-lg font-bold font-mono text-purple-700">{r.value}</p>
-              <p className="text-xs text-purple-500 font-semibold">{r.label}</p>
-            </div>
-          ))}
-        </div>
-        <p className="text-xs text-purple-600 mt-3 font-medium">1 point = ₹{rules.redemption_value || 0.1} discount at checkout</p>
-      </div>
-
-      {/* Membership Tiers */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {Object.entries(MEMBERSHIP_BADGES).map(([tier, { Icon, color, gradient }]) => {
-          const count = leaderboard.filter(c => c.membership_level === tier).length;
-          return (
-            <div key={tier} className={`rounded-xl border p-4 text-center ${tierColors[tier]}`}>
-              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center mx-auto mb-2`}>
-                <Icon className="w-5 h-5 text-white" />
-              </div>
-              <p className="font-bold text-slate-800 capitalize">{tier}</p>
-              <p className="text-2xl font-bold font-mono text-slate-700 mt-1">{count}</p>
-              <p className="text-xs text-slate-500">customers</p>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Leaderboard */}
-      {loading ? (
-        <div className="space-y-2">{[...Array(5)].map((_, i) => <div key={i} className="h-16 bg-slate-200 rounded-xl animate-pulse" />)}</div>
-      ) : (
-        <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-50">
-            <TrendingUp className="w-4 h-4 text-purple-600" />
-            <h3 className="font-bold text-slate-700" style={{fontFamily:'Outfit,sans-serif'}}>Points Leaderboard</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="points-per-100" className="block text-xs font-semibold text-violet-700 mb-1">{t('loyalty.pointsPer100')}</label>
+            <input
+              id="points-per-100"
+              disabled={!isOwner}
+              inputMode="numeric"
+              value={rules?.points_per_100 ?? 1}
+              onChange={(e) => setRules({ ...rules, points_per_100: e.target.value.replace(/\D/g, '') })}
+              className="w-full px-3 py-2.5 rounded-xl border border-violet-200 bg-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-violet-400/40 disabled:opacity-60"
+            />
           </div>
-          <div className="divide-y divide-slate-50">
-            {leaderboard.map((c, i) => {
-              const { Icon, gradient } = MEMBERSHIP_BADGES[c.membership_level] || MEMBERSHIP_BADGES.bronze;
-              return (
-                <div key={c.id || i} className="flex items-center gap-3 px-4 py-3">
-                  <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${i === 0 ? 'bg-yellow-100 text-yellow-600' : i === 1 ? 'bg-slate-100 text-slate-500' : i === 2 ? 'bg-amber-100 text-amber-600' : 'bg-slate-50 text-slate-400'}`}>{i + 1}</span>
-                  <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center flex-shrink-0`}>
-                    <span className="text-white font-bold text-sm">{c.name?.[0]}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-slate-700 truncate">{c.name}</p>
-                    <p className="text-xs text-slate-400 capitalize">{c.membership_level} · {c.customer_id}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-base font-bold font-mono text-purple-600">{c.loyalty_points?.toFixed(0)}</p>
-                    <p className="text-xs text-slate-400">points</p>
-                  </div>
-                </div>
-              );
-            })}
+          <div>
+            <label htmlFor="redemption-value" className="block text-xs font-semibold text-violet-700 mb-1">{t('loyalty.redemptionValue')}</label>
+            <input
+              id="redemption-value"
+              disabled={!isOwner}
+              inputMode="decimal"
+              value={rules?.redemption_value ?? 0.1}
+              onChange={(e) => setRules({ ...rules, redemption_value: e.target.value.replace(/[^\d.]/g, '') })}
+              className="w-full px-3 py-2.5 rounded-xl border border-violet-200 bg-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-violet-400/40 disabled:opacity-60"
+            />
           </div>
         </div>
-      )}
+        <p className="text-xs text-violet-600 font-medium">
+          {t('loyalty.earnRule', { points: rules?.points_per_100 ?? 1 })}
+        </p>
+        <button type="submit" disabled={!isOwner || saving}
+          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-bold disabled:opacity-50">
+          <Save className="w-4 h-4" /> {saving ? t('common.loading') : t('loyalty.saveRules')}
+        </button>
+      </form>
 
-      {/* Recent Transactions */}
-      {transactions.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-50">
-            <h3 className="font-bold text-slate-700" style={{fontFamily:'Outfit,sans-serif'}}>Recent Transactions</h3>
+      {/* Balances */}
+      <section className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+        <h2 className="px-4 py-3 text-sm font-bold text-slate-700 border-b border-slate-50 flex items-center gap-1.5">
+          <Users className="w-4 h-4 text-slate-400" /> {t('loyalty.balances')}
+        </h2>
+        {balances.length === 0 ? (
+          <div className="py-8 text-center">
+            <p className="text-sm font-semibold text-slate-600">{t('loyalty.empty')}</p>
+            <p className="text-xs text-slate-400">{t('loyalty.emptySub')}</p>
           </div>
-          <div className="divide-y divide-slate-50">
-            {transactions.slice(0, 8).map((t, i) => (
-              <div key={t.id || i} className="flex items-center gap-3 px-4 py-3">
-                <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
-                  <Gift className="w-4 h-4 text-purple-500" />
+        ) : (
+          <ul className="divide-y divide-slate-50">
+            {balances.map((b) => (
+              <li key={b.customer_id} className="px-4 py-3 flex items-center justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-700 truncate">{b.name}</p>
+                  <p className="text-[11px] text-slate-400">{b.nm_id} · {b.total_purchases || 0} {t('customers.purchases')}</p>
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-slate-700">{t.customer?.name || 'Unknown'}</p>
-                  <p className="text-xs text-slate-400">{new Date(t.created_at).toLocaleDateString('en-IN')}</p>
-                </div>
-                <div className="text-right">
-                  {t.points_earned > 0 && <p className="text-sm font-bold text-emerald-600">+{t.points_earned?.toFixed(1)} pts</p>}
-                  {t.points_redeemed > 0 && <p className="text-sm font-bold text-amber-600">-{t.points_redeemed?.toFixed(1)} pts</p>}
-                </div>
-              </div>
+                <span className="text-base font-extrabold font-mono text-violet-700">{b.loyalty_points} 🪙</span>
+              </li>
             ))}
-          </div>
-        </div>
-      )}
+          </ul>
+        )}
+      </section>
+
+      {/* Ledger */}
+      <section className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+        <h2 className="px-4 py-3 text-sm font-bold text-slate-700 border-b border-slate-50 flex items-center gap-1.5">
+          <ScrollText className="w-4 h-4 text-slate-400" /> {t('loyalty.ledger')}
+        </h2>
+        {ledger.length === 0 ? (
+          <p className="py-8 text-center text-sm text-slate-400">{t('loyalty.recent')}</p>
+        ) : (
+          <ul className="divide-y divide-slate-50 max-h-96 overflow-y-auto">
+            {ledger.map((tx) => (
+              <li key={tx.id} className="px-4 py-2.5 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-700 truncate">
+                    {tx.customer?.name || '—'}
+                    <span className="ml-2 text-[10px] font-bold uppercase text-slate-400">{tx.type}</span>
+                  </p>
+                  <p className="text-[11px] text-slate-400">{tx.note || (tx.created_at ? dateTime(tx.created_at, lang) : '')}</p>
+                </div>
+                <span className={`text-sm font-bold font-mono flex-shrink-0 ${(tx.delta ?? tx.points) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                  {(tx.delta ?? tx.points) >= 0 ? '+' : ''}{tx.delta ?? tx.points}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

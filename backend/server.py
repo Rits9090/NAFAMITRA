@@ -8,13 +8,19 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-app = FastAPI(title="NafaMitra API", version="1.0.0", redirect_slashes=False)
+import config
+from errors import install_error_handlers
+
+app = FastAPI(title="NafaMitra API", version="2.0.0", redirect_slashes=False)
 api_router = APIRouter(prefix="/api")
+
+install_error_handlers(app)
 
 # Import routes
 from routes.auth_routes import router as auth_router
 from routes.dashboard_routes import router as dashboard_router
 from routes.customer_routes import router as customer_router
+from routes.customer_portal_routes import router as portal_router
 from routes.product_routes import router as product_router
 from routes.sales_routes import router as sales_router
 from routes.udhaar_routes import router as udhaar_router
@@ -23,10 +29,19 @@ from routes.loyalty_routes import router as loyalty_router
 from routes.voice_routes import router as voice_router
 from routes.assistant_routes import router as assistant_router
 from routes.reports_routes import router as reports_router
+from routes.analytics_routes import router as analytics_router, admin_router as admin_analytics_router
+from routes.requirements_routes import router as requirements_router
+from routes.favorites_routes import router as favorites_router
+from routes.notify_routes import router as notify_router
+from routes.retailer_actions import router as actions_router
+from routes.my_stores_routes import router as mystores_router
+from routes.customer_finance_routes import router as finance_router
+from routes.brain_routes import router as brain_router
 
 api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
 api_router.include_router(dashboard_router, prefix="/dashboard", tags=["dashboard"])
 api_router.include_router(customer_router, prefix="/customers", tags=["customers"])
+api_router.include_router(portal_router, prefix="/customer", tags=["customer-portal"])
 api_router.include_router(product_router, prefix="/products", tags=["products"])
 api_router.include_router(sales_router, prefix="/sales", tags=["sales"])
 api_router.include_router(udhaar_router, prefix="/udhaar", tags=["udhaar"])
@@ -35,17 +50,43 @@ api_router.include_router(loyalty_router, prefix="/loyalty", tags=["loyalty"])
 api_router.include_router(voice_router, prefix="/voice", tags=["voice"])
 api_router.include_router(assistant_router, prefix="/assistant", tags=["assistant"])
 api_router.include_router(reports_router, prefix="/reports", tags=["reports"])
+api_router.include_router(requirements_router, prefix="/requirements", tags=["requirements"])
+api_router.include_router(favorites_router, prefix="/favorites", tags=["favorites"])
+api_router.include_router(notify_router, prefix="/notifications", tags=["notifications"])
+api_router.include_router(actions_router, prefix="/retailer", tags=["retailer"])
+api_router.include_router(mystores_router, prefix="/mystores", tags=["my-stores"])
+api_router.include_router(finance_router, prefix="/customer", tags=["customer-finance"])
+api_router.include_router(brain_router, prefix="/customer/brain", tags=["nafa-brain"])
+api_router.include_router(analytics_router)
+api_router.include_router(admin_analytics_router)
+
+
+@api_router.get("/config")
+async def get_public_config():
+    """Brand, languages, support contact, OTP mode — consumed by the SPA."""
+    return config.public_config()
+
 
 @api_router.post("/seed")
 async def seed_demo():
     from seed_data import seed_demo_business
     from database import db
+    from migrate import run_migrations
     result = await seed_demo_business(db)
+    # convert freshly seeded legacy-shaped docs into the new model
+    try:
+        result['migrations'] = await run_migrations()
+    except Exception:
+        logger.exception('post-seed migration failed')
     return result
+
 
 @api_router.get("/health")
 async def health():
-    return {"status": "ok", "service": "NafaMitra API"}
+    from database import using_memory_db
+    return {"status": "ok", "service": "NafaMitra API",
+            "database": "memory" if using_memory_db() else "mongodb"}
+
 
 app.include_router(api_router)
 
@@ -55,13 +96,28 @@ app.add_middleware(
     allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Request-Id"],
 )
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-from database import client
+
+@app.on_event("startup")
+async def startup():
+    from database import client, ensure_indexes, using_memory_db
+    from migrate import run_migrations
+    await ensure_indexes()
+    try:
+        result = await run_migrations()
+        logger.info('migrations: %s', result)
+    except Exception:
+        logger.exception('migration failed (continuing)')
+    if using_memory_db():
+        logger.warning('MONGO_URL not set — using in-memory database (dev/test only)')
+
 
 @app.on_event("shutdown")
 async def shutdown():
+    from database import client
     client.close()

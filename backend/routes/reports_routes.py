@@ -1,132 +1,223 @@
-from fastapi import APIRouter, Depends, Query
-from datetime import datetime, timezone, timedelta
+"""Reports — real aggregations over this shop's data only."""
 from collections import defaultdict
+from datetime import datetime, timedelta, timezone
+
+from fastapi import APIRouter, Depends, Query
+
 from auth import require_business
 from database import db
+from money import fmt, to_paise
 
 router = APIRouter()
 
-@router.get("/sales")
-async def sales_report(
-    period: str = Query('month', enum=['today', 'week', 'month', 'year']),
-    user: dict = Depends(require_business)
-):
-    bid = user['business_id']
-    now = datetime.now(timezone.utc)
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _start(period: str) -> datetime:
+    now = _now()
     if period == 'today':
-        start = now.replace(hour=0, minute=0, second=0).isoformat()
-    elif period == 'week':
-        start = (now - timedelta(days=7)).isoformat()
-    elif period == 'month':
-        start = now.replace(day=1, hour=0, minute=0, second=0).isoformat()
-    else:
-        start = now.replace(month=1, day=1, hour=0).isoformat()
+        return now.replace(hour=0, minute=0, second=0, microsecond=0)
+    if period == 'week':
+        return now - timedelta(days=7)
+    if period == 'year':
+        return now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)  # month
 
-    sales = await db.sales.find({'business_id': bid, 'created_at': {'$gte': start}}, {'_id': 0}).to_list(5000)
-    total_revenue = sum(s.get('total_amount', 0) for s in sales)
-    total_profit = sum(s.get('total_amount', 0) - s.get('total_cost', 0) for s in sales)
 
-    payment_breakdown = defaultdict(float)
-    for s in sales:
-        payment_breakdown[s.get('payment_mode', 'cash')] += s.get('total_amount', 0)
+@router.get("/sales")
+async def sales_report(period: str = Query('month', enum=['today', 'week', 'month', 'year']),
+                       user: dict = Depends(require_business)):
+    shop_id = user['shop_id']
+    start = _start(period)
+    invoices = await db.invoices.find(
+        {'shop_id': shop_id, 'status': 'ACTIVE', 'created_at': {'$gte': start.isoformat()}},
+        {'_id': 0}).to_list(5000)
+    legacy = await db.sales.find(
+        {'business_id': shop_id, 'created_at': {'$gte': start.isoformat()}},
+        {'_id': 0}).to_list(5000)
 
-    daily = defaultdict(lambda: {'revenue': 0, 'orders': 0, 'profit': 0})
-    for s in sales:
+    total_revenue_paise = sum(i.get('total_paise', 0) for i in invoices) + \
+        sum(to_paise(s.get('total_amount', 0)) for s in legacy)
+    total_profit_paise = sum(i.get('total_paise', 0) - i.get('cost_paise', 0) for i in invoices) + \
+        sum(to_paise(float(s.get('total_amount', 0)) - float(s.get('total_cost', 0))) for s in legacy)
+    total_orders = len(invoices) + len(legacy)
+    avg = total_revenue_paise // total_orders if total_orders else 0
+
+    breakdown = defaultdict(float)
+    daily = defaultdict(lambda: {'revenue': 0.0, 'profit': 0.0, 'orders': 0})
+    for s in legacy:
+        breakdown[s.get('payment_mode', 'cash')] += s.get('total_amount', 0)
         day = s.get('created_at', '')[:10]
         daily[day]['revenue'] += s.get('total_amount', 0)
         daily[day]['profit'] += s.get('total_amount', 0) - s.get('total_cost', 0)
         daily[day]['orders'] += 1
+    for inv in invoices:
+        breakdown[inv.get('payment_mode', 'cash')] += inv.get('total_paise', 0) / 100.0
+        day = inv.get('created_at', '')[:10]
+        daily[day]['revenue'] += inv.get('total_paise', 0) / 100.0
+        daily[day]['profit'] += (inv.get('total_paise', 0) - inv.get('cost_paise', 0)) / 100.0
+        daily[day]['orders'] += 1
+
+    credit_txs = await db.credit_transactions.find(
+        {'shop_id': shop_id, 'created_at': {'$gte': start.isoformat()}},
+        {'_id': 0, 'type': 1, 'amount_paise': 1}).to_list(5000)
+    credit_collected = sum(t['amount_paise'] for t in credit_txs if t.get('type') == 'PAYMENT')
+    loyalty_txs = await db.loyalty_transactions.find(
+        {'shop_id': shop_id, 'created_at': {'$gte': start.isoformat()}},
+        {'_id': 0, 'type': 1, 'points': 1}).to_list(5000)
+    loyalty_earned = sum(t.get('points', 0) for t in loyalty_txs if t.get('type') == 'EARN')
+    loyalty_redeemed = sum(t.get('points', 0) for t in loyalty_txs if t.get('type') == 'REDEEM')
 
     return {
-        'period': period, 'total_revenue': total_revenue, 'total_profit': total_profit,
-        'total_orders': len(sales), 'avg_order_value': total_revenue / max(len(sales), 1),
-        'payment_breakdown': dict(payment_breakdown),
-        'daily': [{'date': k, **v} for k, v in sorted(daily.items())]
+        'period': period,
+        'total_revenue': round(total_revenue_paise / 100.0, 2),
+        'total_profit': round(total_profit_paise / 100.0, 2),
+        'total_orders': total_orders,
+        'avg_order_value': round(avg / 100.0, 2),
+        'payment_breakdown': dict(breakdown),
+        'credit_collected': round(credit_collected / 100.0, 2),
+        'loyalty_earned': loyalty_earned,
+        'loyalty_redeemed': loyalty_redeemed,
+        'daily': [{'date': k, 'label': k, **v} for k, v in sorted(daily.items())],
     }
 
-@router.get("/products")
-async def products_report(
-    period: str = Query('month'),
-    user: dict = Depends(require_business)
-):
-    bid = user['business_id']
-    now = datetime.now(timezone.utc)
-    start = now.replace(day=1, hour=0) if period == 'month' else (now - timedelta(days=7))
 
-    pipeline = [
-        {'$match': {'business_id': bid, 'created_at': {'$gte': start.isoformat()}}},
-        {'$unwind': '$items'},
-        {'$group': {
-            '_id': '$items.product_name',
-            'total_qty': {'$sum': '$items.quantity'},
-            'total_revenue': {'$sum': '$items.total'},
-            'total_cost': {'$sum': '$items.cost'}
-        }},
-        {'$sort': {'total_revenue': -1}},
-        {'$limit': 20}
-    ]
-    products = await db.sales.aggregate(pipeline).to_list(20)
-    result = []
-    for p in products:
-        profit = p.get('total_revenue', 0) - p.get('total_cost', 0)
-        margin = (profit / max(p.get('total_revenue', 1), 1)) * 100
-        result.append({'name': p['_id'], 'qty': p['total_qty'], 'revenue': p['total_revenue'], 'profit': profit, 'margin_pct': round(margin, 1)})
-    return result
+@router.get("/products")
+async def products_report(period: str = Query('month'),
+                          user: dict = Depends(require_business)):
+    shop_id = user['shop_id']
+    start = _start(period)
+    totals = defaultdict(lambda: {'qty': 0, 'revenue': 0.0, 'profit': 0.0})
+    for inv in await db.invoices.find(
+            {'shop_id': shop_id, 'status': 'ACTIVE', 'created_at': {'$gte': start.isoformat()}},
+            {'_id': 0, 'items': 1}).to_list(5000):
+        for item in inv.get('items', []):
+            name = item.get('name', 'Unknown')
+            totals[name]['qty'] += item.get('quantity', 0)
+            totals[name]['revenue'] += item.get('total_paise', 0) / 100.0
+            totals[name]['profit'] += (item.get('total_paise', 0) - item.get('cost_paise', 0)) / 100.0
+    for s in await db.sales.find(
+            {'business_id': shop_id, 'created_at': {'$gte': start.isoformat()}},
+            {'_id': 0, 'items': 1}).to_list(5000):
+        for item in s.get('items', []):
+            name = item.get('product_name', 'Unknown')
+            totals[name]['qty'] += item.get('quantity', 0)
+            totals[name]['revenue'] += item.get('total', 0)
+            totals[name]['profit'] += item.get('total', 0) - item.get('cost', 0)
+    rows = [{'name': k, **v} for k, v in totals.items()]
+    rows.sort(key=lambda r: -r['revenue'])
+    return rows[:50]
+
 
 @router.get("/customers")
 async def customers_report(user: dict = Depends(require_business)):
-    bid = user['business_id']
-    customers = await db.customers.find({'business_id': bid, 'is_active': True}, {'_id': 0}).to_list(500)
+    shop_id = user['shop_id']
+    now = _now()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    total = await db.shop_customers.count_documents({'shop_id': shop_id, 'status': 'active'})
+    new_this_month = await db.shop_customers.count_documents(
+        {'shop_id': shop_id, 'created_at': {'$gte': month_start.isoformat()}})
+    repeat = await db.shop_customers.count_documents(
+        {'shop_id': shop_id, 'status': 'active', 'purchase_count': {'$gte': 2}})
+    inactive_cutoff = (now - timedelta(days=30)).isoformat()
+    inactive = await db.shop_customers.count_documents({
+        'shop_id': shop_id, 'status': 'active', 'purchase_count': {'$gt': 0},
+        'last_purchase_at': {'$lt': inactive_cutoff}})
+    never = await db.shop_customers.count_documents(
+        {'shop_id': shop_id, 'status': 'active', 'purchase_count': 0})
 
-    by_membership = defaultdict(int)
-    by_tag = defaultdict(int)
-    for c in customers:
-        by_membership[c.get('membership_level', 'bronze')] += 1
-        for tag in c.get('tags', []):
-            by_tag[tag] += 1
-
-    top_customers = sorted(customers, key=lambda x: x.get('total_purchases', 0), reverse=True)[:10]
-    thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
-    inactive = [c for c in customers if (c.get('last_purchase_at') or '') < thirty_days_ago]
+    # total spend (this shop only)
+    spend = 0
+    for link in await db.shop_customers.find(
+            {'shop_id': shop_id, 'status': 'active'},
+            {'_id': 0, 'total_spend_paise': 1}).to_list(5000):
+        spend += link.get('total_spend_paise', 0)
 
     return {
-        'total': len(customers),
-        'by_membership': dict(by_membership),
-        'by_tag': dict(by_tag),
-        'top_customers': top_customers,
-        'inactive_count': len(inactive)
+        'total': total, 'new_this_month': new_this_month, 'repeat': repeat,
+        'inactive_30d': inactive, 'never_purchased': never,
+        'total_spend': round(spend / 100.0, 2),
+        'segments': [
+            {'key': 'all', 'count': total},
+            {'key': 'new', 'count': max(total - repeat, 0)},
+            {'key': 'repeat', 'count': repeat},
+            {'key': 'inactive', 'count': inactive},
+        ],
     }
+
 
 @router.get("/outstanding")
 async def outstanding_report(user: dict = Depends(require_business)):
-    bid = user['business_id']
-    udhaars = await db.udhaar.find({'business_id': bid, 'outstanding': {'$gt': 0}}, {'_id': 0}).sort('outstanding', -1).to_list(100)
-    total = sum(u.get('outstanding', 0) for u in udhaars)
-    return {'total_outstanding': total, 'customer_count': len(udhaars), 'details': udhaars}
+    shop_id = user['shop_id']
+    accounts = await db.credit_accounts.find(
+        {'shop_id': shop_id, 'outstanding_paise': {'$gt': 0}},
+        {'_id': 0}).to_list(2000)
+    total = sum(a.get('outstanding_paise', 0) for a in accounts)
+    rows = []
+    for acc in accounts:
+        cust = await db.customers.find_one({'id': acc['customer_id']}, {'_id': 0}) or {}
+        link = await db.shop_customers.find_one(
+            {'shop_id': shop_id, 'customer_id': acc['customer_id']}, {'_id': 0}) or {}
+        rows.append({
+            'customer_id': acc['customer_id'], 'nm_id': cust.get('nm_id'),
+            'name': link.get('display_name') or cust.get('name'),
+            'phone': cust.get('phone'),
+            'outstanding_paise': acc['outstanding_paise'],
+        })
+    rows.sort(key=lambda r: -r['outstanding_paise'])
+    return {'total_paise': total, 'total': round(total / 100.0, 2),
+            'total_fmt': fmt(total), 'rows': rows, 'count': len(rows)}
+
 
 @router.get("/inventory")
 async def inventory_report(user: dict = Depends(require_business)):
-    bid = user['business_id']
-    products = await db.products.find({'business_id': bid, 'is_active': True}, {'_id': 0}).to_list(500)
-    by_category = defaultdict(lambda: {'count': 0, 'stock_value': 0})
-    low_stock, out_of_stock = [], []
-    total_stock_value = 0
+    from datetime import datetime, timedelta, timezone
+    shop_id = user['shop_id']
+    products = await db.products.find(
+        {'business_id': shop_id, 'is_active': {'$ne': False}},
+        {'_id': 0, 'id': 1, 'name': 1, 'category': 1, 'stock_quantity': 1,
+         'low_stock_threshold': 1, 'selling_price': 1, 'purchase_price': 1,
+         'created_at': 1}).to_list(1000)
+    value = sum(p.get('stock_quantity', 0) * float(p.get('purchase_price') or 0) for p in products)
+    low = [p for p in products if p.get('stock_quantity', 0) <= p.get('low_stock_threshold', 5)]
+    out = [p for p in products if p.get('stock_quantity', 0) <= 0]
 
+    # Dead stock (अडकलेला पैसा): stock with ZERO sales in the last 30 days.
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    sold_ids, sold_names = set(), set()
+    rows = await db.invoices.aggregate([
+        {'$match': {'shop_id': shop_id, 'status': 'ACTIVE', 'created_at': {'$gte': cutoff}}},
+        {'$unwind': '$items'},
+        {'$group': {'_id': None, 'pids': {'$addToSet': '$items.product_id'},
+                    'names': {'$addToSet': '$items.name'}}},
+    ]).to_list(1)
+    if rows:
+        sold_ids = {x for x in (rows[0].get('pids') or []) if x}
+        sold_names = {(x or '').lower() for x in (rows[0].get('names') or [])}
+    for s in await db.sales.find({'business_id': shop_id, 'created_at': {'$gte': cutoff}},
+                                 {'_id': 0, 'items': 1}).to_list(2000):
+        for it in s.get('items') or []:
+            if it.get('product_id'):
+                sold_ids.add(it['product_id'])
+            if it.get('product_name'):
+                sold_names.add((it['product_name'] or '').lower())
+
+    dead = []
     for p in products:
-        cat = p.get('category', 'Other')
-        stock_val = p.get('stock_quantity', 0) * p.get('purchase_price', 0)
-        by_category[cat]['count'] += 1
-        by_category[cat]['stock_value'] += stock_val
-        total_stock_value += stock_val
-        if p.get('stock_quantity', 0) == 0:
-            out_of_stock.append(p)
-        elif p.get('stock_quantity', 0) <= p.get('low_stock_threshold', 5):
-            low_stock.append(p)
-
-    return {
-        'total_products': len(products),
-        'total_stock_value': total_stock_value,
-        'low_stock': low_stock,
-        'out_of_stock': out_of_stock,
-        'by_category': {k: v for k, v in by_category.items()}
-    }
+        if p.get('stock_quantity', 0) <= 0:
+            continue
+        if p.get('id') in sold_ids or (p.get('name') or '').lower() in sold_names:
+            continue
+        stuck = round(p.get('stock_quantity', 0) * float(p.get('purchase_price') or 0), 2)
+        dead.append({'id': p.get('id'), 'name': p.get('name'), 'category': p.get('category'),
+                     'stock_quantity': p.get('stock_quantity'),
+                     'purchase_price': p.get('purchase_price'),
+                     'stuck_amount': stuck})
+    dead.sort(key=lambda x: -x['stuck_amount'])
+    return {'products': products, 'stock_value': round(value, 2),
+            'low_stock_count': len(low), 'total_products': len(products),
+            'low_stock': low, 'out_of_stock': out,
+            'dead_stock': dead[:50],
+            'dead_stock_amount': round(sum(d['stuck_amount'] for d in dead), 2)}

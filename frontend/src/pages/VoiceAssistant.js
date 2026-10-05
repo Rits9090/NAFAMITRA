@@ -1,21 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
-import axios from 'axios';
 import { toast } from 'sonner';
 import { Mic, MicOff, CheckCircle, AlertCircle, Loader, Volume2, History, Sparkles, X, ChevronRight } from 'lucide-react';
+import api, { errMsg } from '@/lib/api';
+import { useI18n } from '@/i18n';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const STATES = { IDLE: 'idle', LISTENING: 'listening', TRANSCRIBING: 'transcribing', UNDERSTANDING: 'understanding', REVIEW: 'review', EXECUTING: 'executing', SUCCESS: 'success', ERROR: 'error' };
 
 const SAMPLE_COMMANDS = [
-  { text: "Aaj ki total sales kitni hai?", desc: "Check today's sales" },
-  { text: "Ramesh ka 500 rupaye ka bill banao", desc: "Create a bill" },
-  { text: "Dinesh ne 1000 cash jama kiye", desc: "Record payment" },
-  { text: "Kaunsa product low stock hai?", desc: "Check inventory" },
-  { text: "Aaj ka profit kitna hai?", desc: "Check profit" },
-  { text: "Total kitna udhaar baaki hai?", desc: "Check outstanding" },
+  { textKey: 'voice.sampleSales', descKey: 'voice.sampleSalesD' },
+  { textKey: 'voice.sampleBill', descKey: 'voice.sampleBillD' },
+  { textKey: 'voice.samplePayment', descKey: 'voice.samplePaymentD' },
+  { textKey: 'voice.sampleStock', descKey: 'voice.sampleStockD' },
+  { textKey: 'voice.sampleMargin', descKey: 'voice.sampleMarginD' },
+  { textKey: 'voice.sampleUdhaar', descKey: 'voice.sampleUdhaarD' },
 ];
 
 export default function VoiceAssistant() {
+  const { t } = useI18n();
   const [state, setState] = useState(STATES.IDLE);
   const [transcription, setTranscription] = useState('');
   const [intentData, setIntentData] = useState(null);
@@ -30,7 +31,7 @@ export default function VoiceAssistant() {
 
   const loadHistory = async () => {
     try {
-      const { data } = await axios.get(`${API}/voice/history`);
+      const { data } = await api.get(`/voice/history`);
       setHistory(data || []);
     } catch {}
   };
@@ -49,7 +50,7 @@ export default function VoiceAssistant() {
       setState(STATES.LISTENING);
       setTimeout(() => { if (mediaRecorderRef.current?.state === 'recording') stopRecording(); }, 10000);
     } catch (err) {
-      toast.error('Microphone access denied!');
+      toast.error(t('voice.micDenied'));
     }
   };
 
@@ -68,7 +69,13 @@ export default function VoiceAssistant() {
     try {
       const formData = new FormData();
       formData.append('audio', blob, 'voice.webm');
-      const { data } = await axios.post(`${API}/voice/transcribe`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const { data } = await api.post(`/voice/transcribe`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      if (!data.transcription) {
+        // Honest fallback: nothing was heard/transcribed — do not process empty text.
+        setState(STATES.ERROR);
+        setResult({ error: data.notice || t('voice.noTranscript') });
+        return;
+      }
       setTranscription(data.transcription);
       await processText(data.transcription);
     } catch {
@@ -79,7 +86,7 @@ export default function VoiceAssistant() {
   const processText = async (text) => {
     setState(STATES.UNDERSTANDING);
     try {
-      const { data } = await axios.post(`${API}/voice/understand`, { transcription: text });
+      const { data } = await api.post(`/voice/understand`, { transcription: text });
       setIntentData(data);
       setState(STATES.REVIEW);
     } catch {
@@ -90,14 +97,18 @@ export default function VoiceAssistant() {
   const handleConfirm = async () => {
     setState(STATES.EXECUTING);
     try {
-      const { data } = await axios.post(`${API}/voice/execute`, { intent: intentData.intent, entities: intentData, session_id: intentData.session_id });
+      const { data } = await api.post(`/voice/execute`, { intent: intentData.intent, entities: intentData, session_id: intentData.session_id });
       setResult(data);
+      if (data.success === false) {
+        setState(STATES.ERROR);
+        return;
+      }
       setState(STATES.SUCCESS);
       toast.success(data.message || 'Done!');
       loadHistory();
     } catch (err) {
       setState(STATES.ERROR);
-      setResult({ error: err.response?.data?.detail || 'Execution failed' });
+      setResult({ error: errMsg(err, t('voice.execFailed')) });
     }
   };
 
@@ -109,10 +120,10 @@ export default function VoiceAssistant() {
   };
 
   const INTENT_LABELS = {
-    CREATE_SALE: 'Create Sale', ADD_UDHAAR: 'Add Udhaar', RECORD_PAYMENT: 'Record Payment',
-    CHECK_SALES: 'Check Today\'s Sales', CHECK_PROFIT: 'Check Profit',
-    CHECK_OUTSTANDING: 'Check Outstanding', CHECK_STOCK: 'Check Low Stock',
-    ADD_PRODUCT: 'Add Product', ADD_CUSTOMER: 'Add Customer', GENERAL_QUERY: 'General Query'
+    CREATE_SALE: 'voice.iCreateSale', ADD_UDHAAR: 'voice.iAddUdhaar', RECORD_PAYMENT: 'voice.iRecordPayment',
+    CHECK_SALES: 'voice.iCheckSales', CHECK_PROFIT: 'voice.iCheckMargin',
+    CHECK_OUTSTANDING: 'voice.iCheckOutstanding', CHECK_STOCK: 'voice.iCheckStock',
+    ADD_PRODUCT: 'voice.iAddProduct', ADD_CUSTOMER: 'voice.iAddCustomer', GENERAL_QUERY: 'voice.iGeneral'
   };
 
   const micBtnClass = isRecording ? 'bg-red-500 ring-8 ring-red-200' : 'bg-gradient-to-br from-purple-600 to-indigo-600 hover:scale-105';
@@ -120,8 +131,8 @@ export default function VoiceAssistant() {
   return (
     <div className="space-y-5 animate-fadeInUp max-w-2xl mx-auto">
       <div className="text-center">
-        <h1 className="text-2xl font-extrabold text-slate-800" style={{fontFamily:'Outfit,sans-serif'}}>Voice Assistant</h1>
-        <p className="text-slate-500 text-sm mt-1">Speak in Hindi, English, or Hinglish</p>
+        <h1 className="text-2xl font-extrabold text-slate-800" style={{fontFamily:'Outfit,sans-serif'}}>{t('voice.title')}</h1>
+        <p className="text-slate-500 text-sm mt-1">{t('voice.sub')}</p>
       </div>
 
       {/* Main Voice Card */}
@@ -148,17 +159,17 @@ export default function VoiceAssistant() {
 
           {/* Status Text */}
           <div className="text-center">
-            {state === STATES.IDLE && <p className="text-purple-700 font-semibold">Tap the microphone to start</p>}
-            {state === STATES.LISTENING && <p className="text-red-600 font-semibold animate-pulse">Listening... tap to stop</p>}
-            {state === STATES.TRANSCRIBING && <div className="flex items-center gap-2 text-purple-600"><Loader className="w-4 h-4 animate-spin" /><span className="font-semibold">Transcribing audio...</span></div>}
-            {state === STATES.UNDERSTANDING && <div className="flex items-center gap-2 text-purple-600"><Loader className="w-4 h-4 animate-spin" /><span className="font-semibold">Understanding command...</span></div>}
-            {state === STATES.EXECUTING && <div className="flex items-center gap-2 text-purple-600"><Loader className="w-4 h-4 animate-spin" /><span className="font-semibold">Executing...</span></div>}
+            {state === STATES.IDLE && <p className="text-purple-700 font-semibold">{t('voice.tapToStart')}</p>}
+            {state === STATES.LISTENING && <p className="text-red-600 font-semibold animate-pulse">{t('voice.listening')}</p>}
+            {state === STATES.TRANSCRIBING && <div className="flex items-center gap-2 text-purple-600"><Loader className="w-4 h-4 animate-spin" /><span className="font-semibold">{t('voice.transcribing')}</span></div>}
+            {state === STATES.UNDERSTANDING && <div className="flex items-center gap-2 text-purple-600"><Loader className="w-4 h-4 animate-spin" /><span className="font-semibold">{t('voice.understanding')}</span></div>}
+            {state === STATES.EXECUTING && <div className="flex items-center gap-2 text-purple-600"><Loader className="w-4 h-4 animate-spin" /><span className="font-semibold">{t('voice.executing')}</span></div>}
           </div>
 
           {/* Transcription */}
           {transcription && (
             <div className="w-full bg-white/80 rounded-xl p-3 border border-purple-100">
-              <p className="text-xs text-purple-500 font-semibold uppercase tracking-wider mb-1">You said:</p>
+              <p className="text-xs text-purple-500 font-semibold uppercase tracking-wider mb-1">{t('voice.youSaid')}</p>
               <p className="text-slate-700 font-medium italic">"{transcription}"</p>
             </div>
           )}
@@ -169,18 +180,18 @@ export default function VoiceAssistant() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-purple-600" />
-                  <p className="font-bold text-purple-800">I Understood:</p>
+                  <p className="font-bold text-purple-800">{t('voice.understood')}</p>
                 </div>
-                <span className="text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full font-semibold">{Math.round((intentData.confidence || 0.8) * 100)}% confident</span>
+                <span className="text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full font-semibold">{t('voice.confident', { n: String(Math.round((intentData.confidence || 0.8) * 100)) })}</span>
               </div>
               <div className="bg-purple-50 rounded-xl p-3">
-                <p className="text-lg font-bold text-purple-900">{INTENT_LABELS[intentData.intent] || intentData.intent}</p>
+                <p className="text-lg font-bold text-purple-900">{t(INTENT_LABELS[intentData.intent]) || intentData.intent}</p>
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm">
-                {intentData.customer_name && <div className="bg-slate-50 rounded-lg p-2"><span className="text-slate-400 text-xs">Customer</span><p className="font-semibold">{intentData.customer_name}</p></div>}
-                {intentData.amount && <div className="bg-slate-50 rounded-lg p-2"><span className="text-slate-400 text-xs">Amount</span><p className="font-bold font-mono text-emerald-600">₹{intentData.amount}</p></div>}
-                {intentData.payment_mode && <div className="bg-slate-50 rounded-lg p-2"><span className="text-slate-400 text-xs">Payment</span><p className="font-semibold capitalize">{intentData.payment_mode}</p></div>}
-                {intentData.product_name && <div className="bg-slate-50 rounded-lg p-2"><span className="text-slate-400 text-xs">Product</span><p className="font-semibold">{intentData.product_name}</p></div>}
+                {intentData.customer_name && <div className="bg-slate-50 rounded-lg p-2"><span className="text-slate-400 text-xs">{t('common.name')}</span><p className="font-semibold">{intentData.customer_name}</p></div>}
+                {intentData.amount && <div className="bg-slate-50 rounded-lg p-2"><span className="text-slate-400 text-xs">{t('common.amount')}</span><p className="font-bold font-mono text-emerald-600">₹{intentData.amount}</p></div>}
+                {intentData.payment_mode && <div className="bg-slate-50 rounded-lg p-2"><span className="text-slate-400 text-xs">{t('voice.payment')}</span><p className="font-semibold capitalize">{intentData.payment_mode}</p></div>}
+                {intentData.product_name && <div className="bg-slate-50 rounded-lg p-2"><span className="text-slate-400 text-xs">{t('nav.products')}</span><p className="font-semibold">{intentData.product_name}</p></div>}
               </div>
               {intentData.response_message && (
                 <div className="flex items-start gap-2 bg-indigo-50 rounded-xl p-3">
@@ -188,9 +199,17 @@ export default function VoiceAssistant() {
                   <p className="text-sm text-indigo-700 italic">{intentData.response_message}</p>
                 </div>
               )}
+              {intentData.requires_clarification && intentData.clarification_question && (
+                <div className="flex items-start gap-2 bg-amber-50 rounded-xl p-3 border border-amber-200">
+                  <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5" />
+                  <p className="text-sm text-amber-800 font-medium">{intentData.clarification_question}</p>
+                </div>
+              )}
               <div className="flex gap-2">
-                <button onClick={reset} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50">Cancel</button>
-                <button onClick={handleConfirm} className="flex-1 py-3 rounded-xl bg-purple-600 text-white font-semibold text-sm hover:bg-purple-700">Confirm & Execute</button>
+                <button onClick={reset} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50">{t('common.cancel')}</button>
+                {!intentData.requires_clarification && (
+                  <button onClick={handleConfirm} className="flex-1 py-3 rounded-xl bg-purple-600 text-white font-semibold text-sm hover:bg-purple-700">{t('voice.confirmExec')}</button>
+                )}
               </div>
             </div>
           )}
@@ -200,13 +219,13 @@ export default function VoiceAssistant() {
             <div className="w-full bg-emerald-50 border border-emerald-200 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-2">
                 <CheckCircle className="w-5 h-5 text-emerald-600" />
-                <p className="font-bold text-emerald-800">Success!</p>
+                <p className="font-bold text-emerald-800">{t('voice.success')}</p>
               </div>
               <p className="text-sm text-emerald-700">{result.message}</p>
-              {result.data?.total_sales !== undefined && <p className="text-3xl font-bold font-mono text-emerald-700 mt-2">₹{result.data.total_sales?.toFixed(0)}</p>}
-              {result.data?.profit !== undefined && <p className="text-3xl font-bold font-mono text-emerald-700 mt-2">₹{result.data.profit?.toFixed(0)}</p>}
-              {result.data?.total_outstanding !== undefined && <p className="text-3xl font-bold font-mono text-red-600 mt-2">₹{result.data.total_outstanding?.toFixed(0)}</p>}
-              <button onClick={reset} className="w-full mt-3 py-2.5 rounded-xl border border-emerald-200 text-emerald-700 font-semibold text-sm hover:bg-emerald-100">Try Another Command</button>
+              {result.data?.total_paise !== undefined && <p className="text-3xl font-bold font-mono text-emerald-700 mt-2">₹{Math.floor((result.data.total_paise || 0) / 100)}</p>}
+              {result.data?.estimated_gross_margin_paise !== undefined && <p className="text-3xl font-bold font-mono text-emerald-700 mt-2">₹{Math.floor((result.data.estimated_gross_margin_paise || 0) / 100)}</p>}
+              {result.data?.total_outstanding_paise !== undefined && <p className="text-3xl font-bold font-mono text-red-600 mt-2">₹{Math.floor((result.data.total_outstanding_paise || 0) / 100)}</p>}
+              <button onClick={reset} className="w-full mt-3 py-2.5 rounded-xl border border-emerald-200 text-emerald-700 font-semibold text-sm hover:bg-emerald-100">{t('voice.tryAnother')}</button>
             </div>
           )}
 
@@ -215,8 +234,8 @@ export default function VoiceAssistant() {
             <div className="w-full bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-red-500 mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm text-red-700">{result?.error || 'Something went wrong'}</p>
-                <button onClick={reset} className="mt-2 text-sm font-semibold text-red-600 hover:underline">Try Again</button>
+                <p className="text-sm text-red-700">{result?.error || t('voice.somethingWrong')}</p>
+                <button onClick={reset} className="mt-2 text-sm font-semibold text-red-600 hover:underline">{t('common.retry')}</button>
               </div>
             </div>
           )}
@@ -229,13 +248,13 @@ export default function VoiceAssistant() {
           <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Try These Commands</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {SAMPLE_COMMANDS.map((cmd, i) => (
-              <button key={i} onClick={() => trySample(cmd.text)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 hover:bg-purple-50 hover:border-purple-200 border border-slate-100 text-left transition-colors">
+              <button key={i} onClick={() => trySample(t(cmd.textKey))} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 hover:bg-purple-50 hover:border-purple-200 border border-slate-100 text-left transition-colors">
                 <div className="w-7 h-7 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
                   <Sparkles className="w-3.5 h-3.5 text-purple-600" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-slate-700 truncate">{cmd.text}</p>
-                  <p className="text-xs text-slate-400">{cmd.desc}</p>
+                  <p className="text-sm font-medium text-slate-700 truncate">{t(cmd.textKey)}</p>
+                  <p className="text-xs text-slate-400">{t(cmd.descKey)}</p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-slate-300 flex-shrink-0" />
               </button>
