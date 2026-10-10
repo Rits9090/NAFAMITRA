@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import api, { errMsg } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
+import Modal from '@/components/Modal';
 import { fmt } from '@/lib/money';
 import ReceiptModal, { ReceiptBody, shareReceipt } from '@/components/Receipt';
 import { BILLING } from '@/constants/testIds';
@@ -250,10 +251,9 @@ export function BillDetail() {
         </button>
       )}
 
-      {confirmVoid && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setConfirmVoid(false)} aria-hidden="true" />
-          <div className="relative bg-white rounded-2xl p-5 max-w-xs w-full animate-fadeInUp" role="alertdialog" aria-label={t('billsList.void')}>
+      <Modal open={confirmVoid} onClose={() => setConfirmVoid(false)} variant="center" size="xs"
+        role="alertdialog" label={t('billsList.void')}>
+            <div className="p-5">
             <p className="text-sm font-semibold text-slate-800">{t('billsList.voidConfirm')}</p>
             <div className="grid grid-cols-2 gap-2 mt-4">
               <button onClick={() => setConfirmVoid(false)} className="py-2.5 rounded-xl border border-slate-200 text-sm font-semibold">
@@ -263,9 +263,8 @@ export function BillDetail() {
                 {t('billsList.void')}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+            </div>
+      </Modal>
     </div>
   );
 }

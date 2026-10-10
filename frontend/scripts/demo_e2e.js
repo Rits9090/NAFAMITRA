@@ -189,7 +189,7 @@ async function open() {
   check('customer demo renders content', cbody.length > 300);
   check('customer demo has sample data', /₹|NM-|नफा|My Nafa|धनलाभ/i.test(cbody));
   await crawl(win, /^\/c(\/(bills|loyalty|credit|search|nafa|notifications|profile|stores|brain))?$/, 'customer',
-    ['/c/notifications', '/c/stores', '/c/brain']);
+    ['/c/notifications', '/c/stores', '/c/brain', '/c/search', '/c/nafa']);
   const cexit = await waitFor(win, '[data-testid="exit-demo"]', 3000);
   check('customer exit visible', !!cexit);
   if (cexit) {

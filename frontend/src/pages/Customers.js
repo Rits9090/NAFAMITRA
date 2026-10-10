@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { track, ACTIVATION } from '@/lib/analytics';
 import api, { errMsg } from '@/lib/api';
 import { useI18n } from '@/i18n';
+import Modal from '@/components/Modal';
 import { fmt } from '@/lib/money';
 import { shortDate } from '@/lib/dates';
 import { CUSTOMERS } from '@/constants/testIds';
@@ -48,9 +49,8 @@ function NewCustomerForm({ onClose, onCreated, initial = {} }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
-      <form onSubmit={save} className="relative bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl p-5 animate-fadeInUp" role="dialog" aria-label={t('customers.newCustomerTitle')}>
+    <Modal open onClose={onClose} label={t('customers.newCustomerTitle')}>
+      <form onSubmit={save} className="p-5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-bold text-slate-800">{t('customers.newCustomerTitle')}</h3>
           <button type="button" onClick={onClose} aria-label={t('common.close')}><X className="w-5 h-5 text-slate-400" /></button>
@@ -74,7 +74,7 @@ function NewCustomerForm({ onClose, onCreated, initial = {} }) {
           {loading ? t('common.loading') : t('common.save')}
         </button>
       </form>
-    </div>
+    </Modal>
   );
 }
 

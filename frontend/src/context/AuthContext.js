@@ -9,12 +9,16 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import api, { setUnauthorizedHandler, errMsg, setSessionToken, clearSessionToken, beginDemo } from '@/lib/api';
 import { getDemo, setDemo, subscribeDemo } from '@/demo/demoMode';
-import { DEMO_SHOP, DEMO_ME } from '@/demo/fixtures';
+import { DEMO_SHOP, DEMO_ME, DEMO_CUSTOMER } from '@/demo/fixtures';
 
 const AuthContext = createContext({});
 
 const TOKEN_KEY = 'nafamitra_token';
 const SHOP_KEY = 'nafamitra_shop';
+
+const DEMO_CUSTOMER_PROFILE =
+  (DEMO_CUSTOMER && DEMO_CUSTOMER['/customer/me'] && DEMO_CUSTOMER['/customer/me'].profiles
+    && DEMO_CUSTOMER['/customer/me'].profiles[0]) || null;
 
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
@@ -140,8 +144,14 @@ export function AuthProvider({ children }) {
       };
     }
     if (demo === 'customer') {
+      // Customer demo must present the CUSTOMER identity (profile + NM id),
+      // never the merchant's — display only, no token involved.
+      const prof = DEMO_CUSTOMER_PROFILE;
       return {
-        user: DEMO_ME.user, identities, shops: identities?.shops || [],
+        user: prof
+          ? { id: 'demo-customer-001', phone: '98765432xx', name: prof.name, is_active: true }
+          : DEMO_ME.user,
+        identities, shops: identities?.shops || [],
         activeShopView: shop, kindView: 'customer', roleView: role,
       };
     }
@@ -157,7 +167,9 @@ export function AuthProvider({ children }) {
     user: demoView.user,
     identities,
     shops: demoView.shops,
-    customerProfiles: identities?.customer_profiles || [],
+    customerProfiles: demo === 'customer'
+      ? (DEMO_CUSTOMER['/customer/me']?.profiles || [])
+      : (identities?.customer_profiles || []),
     kind: demoView.kindView,
     activeShop: demoView.activeShopView,
     activeShopId: demoView.activeShopView?.id || null,

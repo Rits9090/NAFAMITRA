@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import api, { errMsg } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
+import Modal from '@/components/Modal';
 import { UserCog, Plus, Trash2, X, ShieldCheck } from 'lucide-react';
 
 const ROLES = ['owner', 'manager', 'cashier'];
@@ -129,10 +130,8 @@ export default function Staff() {
         </ul>
       )}
 
-      {showAdd && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowAdd(false)} aria-hidden="true" />
-          <form onSubmit={add} className="relative bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl p-5 animate-fadeInUp" role="dialog" aria-label={t('staff.add')}>
+      <Modal open={showAdd} onClose={() => setShowAdd(false)} label={t('staff.add')}>
+        <form onSubmit={add} className="p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-slate-800">{t('staff.add')}</h3>
               <button type="button" onClick={() => setShowAdd(false)} aria-label={t('common.close')}><X className="w-5 h-5 text-slate-400" /></button>
@@ -158,8 +157,7 @@ export default function Staff() {
               {saving ? t('common.loading') : t('common.save')}
             </button>
           </form>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 }

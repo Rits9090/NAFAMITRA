@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import api, { errMsg } from '@/lib/api';
 import { useI18n } from '@/i18n';
+import Modal from '@/components/Modal';
 import { fmt, toPaise, parseMoney } from '@/lib/money';
 import { UDHAAR } from '@/constants/testIds';
 import {
@@ -180,10 +181,8 @@ export default function Credit() {
         </ul>
       )}
 
-      {modal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setModal(null)} aria-hidden="true" />
-          <form onSubmit={submit} className="relative bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl p-5 animate-fadeInUp" role="dialog" aria-label={modal === 'give' ? t('credit.giveCredit') : t('credit.recordPayment')}>
+      <Modal open={!!modal} onClose={() => setModal(null)} label={modal === 'give' ? t('credit.giveCredit') : t('credit.recordPayment')}>
+        <form onSubmit={submit} className="p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-slate-800">{modal === 'give' ? t('credit.giveCredit') : t('credit.recordPayment')}</h3>
               <button type="button" onClick={() => setModal(null)} aria-label={t('common.close')}><X className="w-5 h-5 text-slate-400" /></button>
@@ -250,8 +249,7 @@ export default function Credit() {
               </button>
             </div>
           </form>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 }

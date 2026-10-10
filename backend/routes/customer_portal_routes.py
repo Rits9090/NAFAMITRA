@@ -86,10 +86,14 @@ async def overview(payload: dict = Depends(require_portal)):
 
     credit_rows = []
     for acc in credit:
+        last_tx = await db.credit_transactions.find_one(
+            {'shop_id': acc['shop_id'], 'customer_id': {'$in': ids}},
+            sort=[('created_at', -1)])
         credit_rows.append({
             'shop_id': acc['shop_id'],
             'shop_name': await _shop_name(acc['shop_id']),
             'outstanding_paise': acc.get('outstanding_paise', 0),
+            'last_activity_at': (last_tx or {}).get('created_at'),
         })
     credit_rows.sort(key=lambda x: -x['outstanding_paise'])
 
@@ -198,6 +202,14 @@ async def portal_bill(bill_id: str, payload: dict = Depends(require_portal)):
         # never reveal another customer's bill
         raise NotFound('Bill not found.', 'बिल सापडले नाही.')
     view = await _bill_view(b)
+    if 'total_paise' in b:
+        # Full ledger figures so the receipt's subtotal/discount/total agree
+        # with every other surface (previously these rendered as ₹0 here).
+        view['subtotal_paise'] = b.get('subtotal_paise', b.get('total_paise'))
+        view['discount_paise'] = b.get('discount_paise', 0)
+        view['loyalty_redeemed_value_paise'] = b.get('loyalty_redeemed_value_paise', 0)
+        view['paid_paise'] = b.get('paid_paise', 0)
+        view['credit_paise'] = b.get('credit_paise', 0)
     view['items'] = [
         {'name': it.get('product_name') or it.get('name'),
          'quantity': it.get('quantity'),

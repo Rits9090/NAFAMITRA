@@ -4,6 +4,7 @@ import { Package, Plus, Search, Edit2, Trash2, X, AlertTriangle, TrendingUp } fr
 import { PRODUCTS } from '@/constants/testIds';
 import api, { errMsg } from '@/lib/api';
 import { useI18n } from '@/i18n';
+import Modal from '@/components/Modal';
 
 
 const STOCK_STATUS = {
@@ -161,12 +162,11 @@ export default function Products() {
       )}
 
       {/* Add/Edit Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-fadeInUp max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-slate-100">
+      <Modal open={showModal} onClose={() => setShowModal(false)} size="md"
+        label={editProduct ? t('prod.edit') : t('prod.addNew')}>
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 sticky top-0 bg-white">
               <h3 className="font-bold text-slate-800" style={{fontFamily:'Outfit,sans-serif'}}>{editProduct ? t('prod.edit') : t('prod.addNew')}</h3>
-              <button onClick={() => setShowModal(false)} className="p-1.5 rounded-lg hover:bg-slate-100"><X className="w-4 h-4 text-slate-400" /></button>
+              <button type="button" onClick={() => setShowModal(false)} aria-label={t('common.close')} className="p-1.5 rounded-lg hover:bg-slate-100"><X className="w-4 h-4 text-slate-400" /></button>
             </div>
             <form onSubmit={handleSubmit} className="p-5 space-y-3">
               <div>
@@ -212,9 +212,7 @@ export default function Products() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 }

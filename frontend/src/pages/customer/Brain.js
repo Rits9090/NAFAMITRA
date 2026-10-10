@@ -41,12 +41,6 @@ function detailLines(intent, d, t) {
       lines.push([t('brain.lblSavingTarget'), fmt(d.saving_target_paise)]);
     }
   }
-  if (intent === 'goals') {
-    (d.goals || []).forEach((g) => {
-      lines.push([`${g.emoji || '🎯'} ${g.name}`,
-        `${fmt(g.progress_paise)} / ${fmt(g.target_paise)} · ${g.percent}%`]);
-    });
-  }
   if (intent === 'loyalty') {
     (d.accounts || []).forEach((a) => {
       lines.push([a.shop_name || '—', `🪙 ${a.points} · ${fmt(a.value_paise || 0)}`]);
@@ -71,7 +65,7 @@ function detailLines(intent, d, t) {
     });
   }
   if (intent === 'help') {
-    ['spending', 'saving', 'goals', 'loyalty', 'stores', 'bills'].forEach((k) => {
+    ['spending', 'saving', 'loyalty', 'stores', 'bills'].forEach((k) => {
       lines.push([t(`brain.cap_${k}`), '']);
     });
   }

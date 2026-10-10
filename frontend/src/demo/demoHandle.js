@@ -81,6 +81,13 @@ function localWrites(config, body) {
   const s = ensureStore();
 
   if (role === 'merchant' && path === '/sales' && config.method === 'post') {
+    // Mirror the real backend's idempotency_keys: a repeated click or retry
+    // with the same key returns the SAME invoice — never a duplicate.
+    const idemKey = body?.idempotency_key;
+    if (idemKey) {
+      s.idem = s.idem || {};
+      if (s.idem[idemKey]) return { status: 200, data: s.idem[idemKey] };
+    }
     const table = s.merchant;
     const amount = body?.mode === 'items'
       ? (body.items || []).reduce((a, it) => a + Number(it.unit_price || 0) * Number(it.quantity || 0), 0) - Number(body.discount || 0)
@@ -102,7 +109,14 @@ function localWrites(config, body) {
       created_at: new Date().toISOString(),
       demo: true,
     };
-    const list = Array.isArray(table['/sales?page=1&limit=10']) ? table['/sales?page=1&limit=10'] : { bills: [], pages: 1 };
+    // Prepend to the EXISTING demo invoice list (never reset it — a demo
+    // sale must not wipe the fixture history it is added to).
+    const existingList = table['/sales?page=1&limit=10'];
+    const list = Array.isArray(existingList)
+      ? { bills: existingList, pages: 1 }
+      : (existingList && Array.isArray(existingList.bills))
+        ? existingList
+        : { bills: [], pages: 1 };
     list.bills = [bill, ...(list.bills || [])];
     list.pages = list.pages || 1;
     table['/sales?page=1&limit=10'] = list;
@@ -115,14 +129,13 @@ function localWrites(config, body) {
       stats.today.orders = (stats.today.orders || 0) + 1;
       stats.today.bills = (stats.today.bills || 0) + 1;
     }
-    return {
-      status: 200,
-      data: {
-        id, invoice_number: num, total_paise: paise,
-        loyalty_earned_points: Math.max(1, Math.floor(paise / 10000)),
-        demo: true,
-      },
+    const responseData = {
+      id, invoice_number: num, total_paise: paise,
+      loyalty_earned_points: Math.max(1, Math.floor(paise / 10000)),
+      demo: true,
     };
+    if (idemKey) s.idem[idemKey] = responseData;
+    return { status: 200, data: responseData };
   }
 
   if (role === 'merchant' && path === '/products' && config.method === 'post') {

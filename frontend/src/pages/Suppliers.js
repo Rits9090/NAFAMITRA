@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { Truck, Plus, X, ChevronRight, Package, IndianRupee } from 'lucide-react';
 import api, { errMsg } from '@/lib/api';
 import { useI18n } from '@/i18n';
+import Modal from '@/components/Modal';
 import { shortDate } from '@/lib/dates';
 
 
@@ -94,17 +95,19 @@ export default function Suppliers() {
       )}
 
       {/* Supplier Detail Modal */}
+      {/* Gate on `selected`: JSX children are constructed on every render even
+          when the dialog is closed — never dereference null state here. */}
       {selected && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl animate-fadeInUp max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-slate-100">
+      <Modal open onClose={() => { setSelected(null); setSupplierDetail(null); }} size="lg"
+        label={selected.name}>
+            <div className="flex items-center justify-between p-4 border-b border-slate-100 sticky top-0 bg-white">
               <div>
                 <p className="font-bold text-slate-800">{selected.name}</p>
                 <p className="text-xs text-slate-400">{selected.phone}</p>
               </div>
-              <button onClick={() => { setSelected(null); setSupplierDetail(null); }} className="p-1.5 rounded-lg hover:bg-slate-100"><X className="w-4 h-4 text-slate-400" /></button>
+              <button type="button" onClick={() => { setSelected(null); setSupplierDetail(null); }} aria-label={t('common.close')} className="p-1.5 rounded-lg hover:bg-slate-100"><X className="w-4 h-4 text-slate-400" /></button>
             </div>
-            <div className="p-4 overflow-y-auto space-y-4">
+            <div className="p-4 space-y-4">
               <div className="grid grid-cols-3 gap-2">
                 {[
                   { id: 'bought', labelKey: 'sup.totalBought', value: fmt(selected.total_purchases), color: 'blue' },
@@ -137,17 +140,14 @@ export default function Suppliers() {
                 </div>
               )}
             </div>
-          </div>
-        </div>
+      </Modal>
       )}
 
       {/* Add Supplier Modal */}
-      {showAdd && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl animate-fadeInUp">
+      <Modal open={showAdd} onClose={() => setShowAdd(false)} variant="center" label={t('sup.addTitle')}>
             <div className="flex items-center justify-between p-4 border-b border-slate-100">
               <h3 className="font-bold text-slate-800">{t('sup.addTitle')}</h3>
-              <button onClick={() => setShowAdd(false)}><X className="w-4 h-4 text-slate-400" /></button>
+              <button type="button" onClick={() => setShowAdd(false)} aria-label={t('common.close')}><X className="w-4 h-4 text-slate-400" /></button>
             </div>
             <form onSubmit={handleAdd} className="p-4 space-y-3">
               {[
@@ -168,9 +168,7 @@ export default function Suppliers() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 }

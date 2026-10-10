@@ -109,16 +109,16 @@ export function CustomerProfile() {
         <p className="text-[11px] text-slate-400 text-center mt-2">{t('app.verifyFail')} → {t('app.loginInstead')}</p>
       </div>
 
-      {/* Quick links — Account is the hub for everything not in the 5 tabs */}
+      {/* Secondary menu — Account is the hub for everything outside the 4 tabs */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm divide-y divide-slate-50">
         {[
-          { to: '/c/stores', labelKey: 'stores.title', icon: '🏪' },
+          { to: '/c/nafa', labelKey: 'nav.myNafa', icon: '🪙' },
           { to: '/c/brain', labelKey: 'brain.askTitle', icon: '✨' },
+          { to: '/c/search', labelKey: 'search.tabShops', icon: '⭐' },
+          { to: '/c/search', labelKey: 'search.tabReqs', icon: '📋' },
           { to: '/c/notifications', labelKey: 'nav.notifications', icon: '🔔' },
           { to: '/c/credit', labelKey: 'nav.credit', icon: '₹' },
-          { to: '/c/loyalty', labelKey: 'nav.loyalty', icon: '🪙' },
-          { to: '/c/search', labelKey: 'search.tabReqs', icon: '📋' },
-          { to: '/c/search', labelKey: 'search.tabShops', icon: '⭐' },
+          { to: '/c/loyalty', labelKey: 'nav.loyalty', icon: '💛' },
         ].map(({ to, labelKey, icon }) => (
           <button key={to} onClick={() => navigate(to)}
             className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50">

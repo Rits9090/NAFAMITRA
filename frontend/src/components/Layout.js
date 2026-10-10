@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
+import Modal from '@/components/Modal';
 import { LanguageSwitcher } from '@/pages/Login';
 
 const mainNav = [
@@ -139,23 +140,21 @@ export default function Layout() {
       </aside>
 
       {/* Mobile drawer */}
-      {drawerOpen && (
-        <div className="lg:hidden fixed inset-0 z-40">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setDrawerOpen(false)} aria-hidden="true" />
-          <aside className="absolute left-0 top-0 bottom-0 w-64 bg-white shadow-2xl z-50 flex flex-col" role="dialog" aria-label="Menu">
-            <button
-              onClick={() => setDrawerOpen(false)}
-              className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-slate-100"
-              aria-label={t('common.close')}
-            >
-              <X className="w-5 h-5 text-slate-500" />
-            </button>
-            <ShopBlock />
-            <NavItems onNavigate={() => setDrawerOpen(false)} />
-            <UserBlock onNavigate={() => setDrawerOpen(false)} />
-          </aside>
+      <Modal open={drawerOpen} onClose={() => setDrawerOpen(false)} variant="drawer" size="xs"
+        overlayClassName="lg:hidden" label="Menu">
+        <div className="relative flex flex-col h-full">
+          <button
+            onClick={() => setDrawerOpen(false)}
+            className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-slate-100 z-10"
+            aria-label={t('common.close')}
+          >
+            <X className="w-5 h-5 text-slate-500" />
+          </button>
+          <ShopBlock />
+          <NavItems onNavigate={() => setDrawerOpen(false)} />
+          <UserBlock onNavigate={() => setDrawerOpen(false)} />
         </div>
-      )}
+      </Modal>
 
       {/* Main */}
       <div className="flex-1 flex flex-col lg:ml-56 min-w-0">
@@ -242,10 +241,8 @@ export default function Layout() {
       </nav>
 
       {/* Account switcher */}
-      {switcherOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setSwitcherOpen(false)} aria-hidden="true" />
-          <div className="relative bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl p-5 animate-fadeInUp" role="dialog" aria-label={t('common.switchAccount')}>
+      <Modal open={switcherOpen} onClose={() => setSwitcherOpen(false)} label={t('common.switchAccount')}>
+        <div className="p-5">
             <h3 className="font-bold text-slate-800 mb-3">{t('common.switchAccount')}</h3>
             <button
               onClick={() => { setSwitcherOpen(false); }}
@@ -269,9 +266,8 @@ export default function Layout() {
             <button onClick={() => setSwitcherOpen(false)} className="w-full text-center text-sm text-slate-500 py-2">
               {t('common.cancel')}
             </button>
-          </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

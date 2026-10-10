@@ -1,19 +1,18 @@
 import React from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { Home, Search, Receipt, Coins, UserCircle2, Repeat2, LogOut } from 'lucide-react';
+import { Home, Store, Receipt, UserCircle2, Repeat2, LogOut } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
 import { LanguageSwitcher } from '@/pages/Login';
 
-// Customer shell: exactly 5 tabs per spec (Home / Search / Purchases /
-// My Nafa / Account). Credit + loyalty history live under My Nafa/Account
-// as deep links — reachable from those pages, not as extra tabs.
+// Customer shell: 4 primary tabs per spec — Home / Bills / My Stores /
+// Profile. Search, DhanLabh history, notifications and Ask Nafa remain
+// reachable from Profile's secondary menu (and Home's DhanLabh link).
 const nav = [
   { to: '/c', labelKey: 'nav.home', icon: Home, exact: true },
-  { to: '/c/search', labelKey: 'nav.search', icon: Search },
-  { to: '/c/bills', labelKey: 'nav.purchases', icon: Receipt },
-  { to: '/c/nafa', labelKey: 'nav.myNafa', icon: Coins },
-  { to: '/c/profile', labelKey: 'nav.account', icon: UserCircle2 },
+  { to: '/c/bills', labelKey: 'nav.bills', icon: Receipt },
+  { to: '/c/stores', labelKey: 'nav.myStores', icon: Store },
+  { to: '/c/profile', labelKey: 'nav.profile', icon: UserCircle2 },
 ];
 
 export default function CustomerApp() {
@@ -31,7 +30,7 @@ export default function CustomerApp() {
             </div>
             <div className="leading-tight">
               <p className="text-sm font-extrabold text-slate-800">NafaMitra</p>
-              <p className="text-[10px] text-emerald-700 font-semibold -mt-0.5">{t('brand.tagline')}</p>
+              <p className="text-[10px] text-emerald-700 font-semibold -mt-0.5">{t('brand.taglineCustomer')}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">

@@ -1220,7 +1220,8 @@ export const DEMO_CUSTOMER = {
    {
     "shop_id": "2f7648e2-473b-47a5-aaee-8685762ac51f",
     "shop_name": "Demo Kirana Store",
-    "outstanding_paise": 52000
+    "outstanding_paise": 52000,
+      "last_activity_at": "2026-10-05T17:44:28.692937+00:00"
    }
   ],
   "shops": [
@@ -1307,33 +1308,9 @@ export const DEMO_CUSTOMER = {
    "linked_count": 1,
    "target": 5
   },
-  "goals": [
-   {
-    "id": "d8ba1e8c-ad03-4efe-ab20-8230bf885d04",
-    "name": "New Phone",
-    "emoji": null,
-    "target_paise": 15000000,
-    "progress_paise": 4500000,
-    "monthly_target_paise": null,
-    "created_at": "2026-10-05T17:44:28.779617+00:00",
-    "updated_at": "2026-10-05T17:44:28.779630+00:00",
-    "deleted_at": null,
-    "percent": 30.0
-   }
-  ],
-  "saving_target_paise": 300000,
+    "saving_target_paise": 300000,
   "saving_progress_paise": 1080,
-  "expenses": {
-   "total_paise": 6000,
-   "by_category": [
-    {
-     "category": "other",
-     "paise": 6000
-    }
-   ],
-   "source": "customer_added"
-  },
-  "insight": {
+    "insight": {
    "key": "first_period"
   },
   "entitlements": [
@@ -1380,6 +1357,55 @@ export const DEMO_CUSTOMER = {
     "paise": true
    }
   ]
+ },
+ "/customer/bills/24ce1092-76f4-45ec-a1f9-e42c74a0a000": {
+  "id": "24ce1092-76f4-45ec-a1f9-e42c74a0a000",
+  "invoice_number": "INV-2610-0004",
+  "shop_name": "Demo Kirana Store",
+  "shop_id": "2f7648e2-473b-47a5-aaee-8685762ac51f",
+  "status": "ACTIVE",
+  "created_at": "2026-10-05T17:44:28.692937+00:00",
+  "total_paise": 52000,
+  "payment_mode": "credit",
+  "payment_status": "credit",
+  "loyalty_earned_points": 5,
+  "loyalty_redeemed_points": 0,
+  "share_token": "b09fdaf079c0d7c2e6b2313d",
+  "paise": true,
+  "subtotal_paise": 52000,
+  "discount_paise": 0,
+  "loyalty_redeemed_value_paise": 0,
+  "paid_paise": 0,
+  "credit_paise": 52000,
+  "items": [
+   {"name": "Basmati Rice 5kg", "quantity": 1, "total": 52000, "unit_price": 52000}
+  ],
+  "shop": {"name": "Demo Kirana Store", "location": null}
+ },
+ "/customer/bills/35c17d7a-3f17-4afb-8f70-9f4692e7adef": {
+  "id": "35c17d7a-3f17-4afb-8f70-9f4692e7adef",
+  "invoice_number": "INV-2610-0003",
+  "shop_name": "Demo Kirana Store",
+  "shop_id": "2f7648e2-473b-47a5-aaee-8685762ac51f",
+  "status": "ACTIVE",
+  "created_at": "2026-10-05T17:44:28.688128+00:00",
+  "total_paise": 35000,
+  "payment_mode": "upi",
+  "payment_status": "paid",
+  "loyalty_earned_points": 3,
+  "loyalty_redeemed_points": 0,
+  "share_token": "9a8c748de3bc2289e7280c86",
+  "paise": true,
+  "subtotal_paise": 36000,
+  "discount_paise": 1000,
+  "loyalty_redeemed_value_paise": 0,
+  "paid_paise": 35000,
+  "credit_paise": 0,
+  "items": [
+   {"name": "Toor Dal 1kg", "quantity": 2, "total": 32000, "unit_price": 16000},
+   {"name": "Parle-G Biscuit", "quantity": 4, "total": 4000, "unit_price": 1000}
+  ],
+  "shop": {"name": "Demo Kirana Store", "location": null}
  },
  "/customer/loyalty": {
   "accounts": [
@@ -1444,40 +1470,6 @@ export const DEMO_CUSTOMER = {
     ]
    }
   ]
- },
- "/customer/goals": {
-  "goals": [
-   {
-    "id": "d8ba1e8c-ad03-4efe-ab20-8230bf885d04",
-    "name": "New Phone",
-    "emoji": null,
-    "target_paise": 15000000,
-    "progress_paise": 4500000,
-    "monthly_target_paise": null,
-    "created_at": "2026-10-05T17:44:28.779617+00:00",
-    "updated_at": "2026-10-05T17:44:28.779630+00:00",
-    "deleted_at": null,
-    "percent": 30.0
-   }
-  ]
- },
- "/customer/expenses": {
-  "expenses": [
-   {
-    "id": "b43b2ced-bd70-4d26-b4fb-fd2072bacf0a",
-    "title": "Auto-rickshaw",
-    "amount_paise": 6000,
-    "category": "other",
-    "date": "2026-10-05",
-    "currency": "INR",
-    "source": "customer_added",
-    "verification": "customer_entered",
-    "created_at": "2026-10-05T17:44:28.785300+00:00",
-    "deleted_at": null
-   }
-  ],
-  "total_paise": 6000,
-  "source": "customer_added"
  },
  "/customer/settings": {
   "customer_id": "4e8ebddc-8321-4d1d-959e-91a4187c811f",

@@ -5,13 +5,19 @@ import { track, ACTIVATION } from '@/lib/analytics';
 import api, { errMsg } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
+import Modal from '@/components/Modal';
 import { fmt, toPaise, parseMoney, newIdempotencyKey, SYMBOL } from '@/lib/money';
 import ReceiptModal from '@/components/Receipt';
 import { BILLING, CUSTOMERS } from '@/constants/testIds';
 import {
   Search, User, X, Plus, Minus, ScanLine, AlertTriangle, Check,
-  ChevronDown, Sparkles, Clock,
+  ChevronDown, Sparkles, Clock, Mic,
 } from 'lucide-react';
+import { dictate, isDictationSupported } from '@/lib/voiceInput';
+import {
+  rememberProduct, recentProductIds, saveLastBasket, getLastBasket,
+  parseVoiceAdd, matchProducts,
+} from '@/lib/fastBilling';
 
 const PAYMENTS = ['cash', 'upi', 'card', 'credit'];
 
@@ -34,6 +40,7 @@ function CustomerPicker({ selected, onSelect, onClear, onCreateNew }) {
   const [scanning, setScanning] = useState(false);
   const debounced = useDebounced(q, 250);
   const boxRef = useRef(null);
+  const defaultsLoaded = useRef(false);
 
   useEffect(() => {
     if (!debounced || debounced.length < 2) { setResults([]); return undefined; }
@@ -51,6 +58,15 @@ function CustomerPicker({ selected, onSelect, onClear, onCreateNew }) {
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
   }, []);
+
+  // One-tap recent customers: defaults load once when the field is focused empty.
+  const loadDefaults = () => {
+    if (defaultsLoaded.current) return;
+    defaultsLoaded.current = true;
+    api.get('/customers', { params: { segment: 'all', limit: 5 } })
+      .then(({ data }) => setResults(data.customers || []))
+      .catch(() => {});
+  };
 
   const scanQr = async () => {
     if (!('BarcodeDetector' in window)) {
@@ -144,7 +160,7 @@ function CustomerPicker({ selected, onSelect, onClear, onCreateNew }) {
           data-testid={BILLING.customerSearch}
           value={q}
           onChange={(e) => { setQ(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => { setOpen(true); if (!q) loadDefaults(); }}
           placeholder={t('billing.searchCustomer')}
           autoComplete="off"
           className="w-full pl-9 pr-24 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
@@ -174,6 +190,11 @@ function CustomerPicker({ selected, onSelect, onClear, onCreateNew }) {
             >
               {t('billing.createInline', { q })}
             </button>
+          )}
+          {q.length < 2 && results.length > 0 && (
+            <p className="px-4 pt-2.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              {t('billing.recentCustomers')}
+            </p>
           )}
           {results.map((c) => (
             <button
@@ -222,9 +243,8 @@ function NewCustomerModal({ initialPhone, onClose, onCreated }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
-      <form onSubmit={save} className="relative bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl p-5 animate-fadeInUp" role="dialog" aria-label={t('customers.newCustomerTitle')}>
+    <Modal open onClose={onClose} label={t('customers.newCustomerTitle')}>
+      <form onSubmit={save} className="p-5">
         <h3 className="font-bold text-slate-800 mb-4">{t('customers.newCustomerTitle')}</h3>
         <label className="block text-xs font-semibold text-slate-500 mb-1.5" htmlFor="new-cust-name">{t('common.name')}</label>
         <input
@@ -262,12 +282,12 @@ function NewCustomerModal({ initialPhone, onClose, onCreated }) {
           </button>
         </div>
       </form>
-    </div>
+    </Modal>
   );
 }
 
 export default function Billing() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { activeShop } = useAuth();
   const navigate = useNavigate();
 
@@ -293,6 +313,11 @@ export default function Billing() {
   const [bill, setBill] = useState(null);
   const idemKey = useRef(newIdempotencyKey());
 
+  // fast-billing: voice dictation + one-tap helpers
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const [voiceText, setVoiceText] = useState('');
+  const searchRef = useRef(null);
+
   const shopSettings = activeShop?.settings || {};
   const redemptionPaise = shopSettings.redemption_value_paise ?? 10;
   const pointsPer100 = shopSettings.loyalty_points_per_100 ?? 1;
@@ -302,6 +327,11 @@ export default function Billing() {
       .then(({ data }) => setProducts(data.products || []))
       .catch(() => setProducts([]));
   }, []);
+
+  // Keyboard-first: product search is focused the moment Items mode opens.
+  useEffect(() => {
+    if (mode === 'items' && searchRef.current) searchRef.current.focus();
+  }, [mode]);
 
   // ---- cart maths (all in paise) -----------------------------------------
   const subtotal = cart.reduce((s, i) => s + i.totalPaise, 0);
@@ -319,23 +349,75 @@ export default function Billing() {
     ? Math.floor((total / 10000) * pointsPer100) : 0;
 
   // ---- product add --------------------------------------------------------
-  const addProduct = (p) => {
+  const addProduct = (p, qty = 1) => {
+    const addQty = Math.max(1, qty | 0);
     const pricePaise = toPaise(p.selling_price);
     const minPaise = p.min_selling_price != null ? toPaise(p.min_selling_price) : null;
+    rememberProduct(p.id);
     setCart((prev) => {
       const existing = prev.find((i) => i.product_id === p.id);
       if (existing) {
+        const quantity = existing.quantity + addQty;
         return prev.map((i) => i.product_id === p.id
-          ? { ...i, quantity: i.quantity + 1, totalPaise: (i.quantity + 1) * i.unitPricePaise }
+          ? { ...i, quantity, totalPaise: quantity * i.unitPricePaise }
           : i);
       }
       return [...prev, {
-        product_id: p.id, name: p.name, quantity: 1,
-        unitPricePaise: pricePaise, totalPaise: pricePaise,
+        product_id: p.id, name: p.name, quantity: addQty,
+        unitPricePaise: pricePaise, totalPaise: pricePaise * addQty,
         minPaise, stock: p.stock_quantity ?? null, costPaise: toPaise(p.purchase_price || 0),
       }];
     });
     setProductQ('');
+  };
+
+  // One-tap repeat of the previous basket — catalog revalidated at tap time
+  // (current prices, stock-checked); missing items are reported, never faked.
+  const repeatLast = () => {
+    const basket = getLastBasket();
+    if (!basket.length) return;
+    let added = 0;
+    let missing = 0;
+    basket.forEach((b) => {
+      const prod = products.find((x) => x.id === b.product_id);
+      if (!prod || (prod.stock_quantity ?? 1) <= 0) { missing += 1; return; }
+      addProduct(prod, Math.max(1, b.quantity || 1));
+      added += 1;
+    });
+    if (added) toast.success(t('billing.repeatDone', { n: String(added) }));
+    if (missing) toast.info(t('billing.repeatMissing', { n: String(missing) }));
+  };
+
+  // Voice ASSISTED entry — dictation transcript → catalog match → visible
+  // confirmation. Never submits a bill from speech alone.
+  const startVoiceAdd = async () => {
+    if (voiceBusy) return;
+    setVoiceBusy(true);
+    try {
+      const locale = lang === 'mr' ? 'mr-IN' : lang === 'hi' ? 'hi-IN' : 'en-IN';
+      const transcript = await dictate({ lang: locale });
+      setVoiceText(transcript);
+      const { qty, nameQuery } = parseVoiceAdd(transcript);
+      const matches = matchProducts(products, nameQuery);
+      if (matches.length === 1) {
+        addProduct(matches[0], qty);
+        toast.success(t('billing.voiceAdded', { name: matches[0].name, qty: String(qty) }));
+        setVoiceText('');
+      } else if (matches.length > 1) {
+        // ambiguous — show the candidates; the user's tap is the confirmation
+        setProductQ(nameQuery);
+      } else {
+        setProductQ(nameQuery || transcript);
+        toast.error(t('billing.voiceNoMatch'));
+      }
+    } catch (e) {
+      const code = (e && e.message) || '';
+      if (code === 'unsupported') toast.info(t('billing.voiceUnsupported'));
+      else if (code === 'timeout' || code === 'no-speech') toast.info(t('billing.voiceNothing'));
+      else toast.error(t('billing.voiceFailed'));
+    } finally {
+      setVoiceBusy(false);
+    }
   };
 
   const changeQty = (id, delta) => {
@@ -423,6 +505,7 @@ export default function Billing() {
       }
       const { data } = await api.post('/sales', payload);
       track(ACTIVATION.FIRST_BILL, { mode: payload.mode, total_paise: data.total_paise ?? null });
+      if (mode === 'items') saveLastBasket(cart);
       setBill(data);
       idemKey.current = newIdempotencyKey(); // fresh key for the next bill
     } catch (err) {
@@ -537,13 +620,90 @@ export default function Billing() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
+              ref={searchRef}
               data-testid={BILLING.productSearch}
               value={productQ}
-              onChange={(e) => setProductQ(e.target.value)}
+              onChange={(e) => { setProductQ(e.target.value); if (voiceText) setVoiceText(''); }}
               placeholder={t('billing.searchProduct')}
-              className="w-full pl-9 pr-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+              className={`w-full pl-9 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 ${isDictationSupported() ? 'pr-12' : 'pr-4'}`}
             />
+            {isDictationSupported() && (
+              <button
+                type="button"
+                onClick={startVoiceAdd}
+                disabled={voiceBusy}
+                data-testid="voice-add-btn"
+                aria-label={t('billing.voiceAdd')}
+                title={t('billing.voiceAdd')}
+                className={`absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-lg flex items-center justify-center transition-colors disabled:opacity-60 ${
+                  voiceBusy ? 'bg-emerald-100 text-emerald-700 animate-pulse' : 'text-emerald-700 hover:bg-emerald-50'
+                }`}
+              >
+                <Mic className="w-4 h-4" />
+              </button>
+            )}
           </div>
+          {voiceText && (
+            <p data-testid="voice-transcript"
+              className="text-xs italic text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+              “{voiceText}”
+            </p>
+          )}
+
+          {/* One-tap helpers when the search box is idle */}
+          {!productQ && products.length > 0 && (
+            <div className="space-y-2.5" data-testid="fast-add-panel">
+              {recentProductIds().map((id) => products.find((x) => x.id === id)).filter(Boolean).slice(0, 6).length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                    {t('billing.recentlyAdded')}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {recentProductIds().map((id) => products.find((x) => x.id === id)).filter(Boolean).slice(0, 6).map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => addProduct(p)}
+                        data-testid="recent-chip"
+                        className="px-2.5 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+                      >
+                        {p.name} <span className="font-mono opacity-70">{fmt(toPaise(p.selling_price))}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                  {t('billing.quickAdd')}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {products.slice(0, 6).map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => addProduct(p)}
+                      disabled={(p.stock_quantity ?? 1) <= 0}
+                      data-testid="quick-add-chip"
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:border-emerald-300 hover:bg-emerald-50 disabled:opacity-40"
+                    >
+                      + {p.name} <span className="font-mono opacity-70">{fmt(toPaise(p.selling_price))}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {cart.length === 0 && getLastBasket().length > 0 && (
+                <button
+                  type="button"
+                  onClick={repeatLast}
+                  data-testid="repeat-last"
+                  className="w-full py-2.5 rounded-xl border border-dashed border-emerald-300 bg-emerald-50/50 text-xs font-bold text-emerald-800 hover:bg-emerald-50"
+                >
+                  ⟲ {t('billing.repeatLast')}
+                </button>
+              )}
+            </div>
+          )}
           {filtered.length > 0 && (
             <div className="border border-slate-200 rounded-xl overflow-hidden">
               {filtered.map((p) => (
@@ -568,7 +728,7 @@ export default function Billing() {
               <p className="text-center text-xs text-slate-400 py-3">{t('billing.itemsRequired')}</p>
             )}
             {cart.map((i) => (
-              <div key={i.product_id} className="border border-slate-200 rounded-xl p-2.5">
+              <div key={i.product_id} data-testid="cart-line" className="border border-slate-200 rounded-xl p-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-semibold text-slate-700 truncate flex-1">{i.name}</p>
                   <button onClick={() => removeLine(i.product_id)} aria-label={t('common.delete')} className="p-1 text-slate-400 hover:text-red-500">

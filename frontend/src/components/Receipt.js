@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useI18n } from '@/i18n';
+import Modal from '@/components/Modal';
 import { fmt } from '@/lib/money';
 import { toast } from 'sonner';
 import { Check, Share2, Link2, X, Printer, MessageCircle } from 'lucide-react';
@@ -156,9 +157,7 @@ export default function ReceiptModal({ bill, shopName, onClose, onNewBill }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" data-testid="receipt-modal">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
-      <div className="relative bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl overflow-hidden animate-fadeInUp shadow-2xl" role="dialog" aria-label={t('receipt.title')}>
+    <Modal open onClose={onClose} label={t('receipt.title')} panelTestId="receipt-modal" panelClassName="overflow-hidden">
         <div className="bg-emerald-600 px-5 py-5 text-white text-center">
           <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-2">
             <Check className="w-6 h-6" />
@@ -221,7 +220,6 @@ export default function ReceiptModal({ bill, shopName, onClose, onNewBill }) {
             <X className="w-4 h-4" /> {t('common.close')}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

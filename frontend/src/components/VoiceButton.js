@@ -3,6 +3,7 @@ import { Mic, MicOff, X, CheckCircle, AlertCircle, Loader, Volume2 } from 'lucid
 import { toast } from 'sonner';
 import { VOICE } from '@/constants/testIds';
 import api, { errMsg } from '@/lib/api';
+import Modal from '@/components/Modal';
 
 
 const STATES = { IDLE: 'idle', LISTENING: 'listening', TRANSCRIBING: 'transcribing', UNDERSTANDING: 'understanding', REVIEW: 'review', EXECUTING: 'executing', SUCCESS: 'success', ERROR: 'error' };
@@ -146,9 +147,7 @@ export default function VoiceButton() {
       )}
 
       {/* Voice Modal */}
-      {isOpen && (
-        <div data-testid={VOICE.modal} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-fadeInUp">
+      <Modal open={isOpen} onClose={handleClose} panelTestId={VOICE.modal} label="NafaMitra Voice" size="md">
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-slate-100">
               <div className="flex items-center gap-2">
@@ -296,9 +295,7 @@ export default function VoiceButton() {
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      )}
+      </Modal>
     </>
   );
 }
