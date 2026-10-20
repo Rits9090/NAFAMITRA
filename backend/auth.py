@@ -72,6 +72,11 @@ def create_access_token(user_id: str, email: str = '', business_id: Optional[str
 
 
 def decode_token(token: str) -> dict:
+    # Supabase session (SPA) — verified via project JWT secret or JWKS.
+    from supabase_auth import maybe_decode_supabase
+    supabase_payload = maybe_decode_supabase(token)
+    if supabase_payload is not None:
+        return supabase_payload
     try:
         return jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
     except jwt.ExpiredSignatureError:

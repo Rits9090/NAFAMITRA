@@ -69,6 +69,7 @@ async function open(url, opts = {}) {
       });
       window.scrollTo = () => {};
       if (!window.Element.prototype.scrollIntoView) window.Element.prototype.scrollIntoView = () => {};
+      window.fetch = () => Promise.reject(new TypeError('Failed to fetch'));
       if (opts.beforeParse) opts.beforeParse(window);
       window.addEventListener('error', (e) => pageErrors.push('onerror: ' + ((e.error && e.error.stack) || e.message)));
       window.addEventListener('unhandledrejection', (e) => pageErrors.push('unhandled: ' + ((e.reason && e.reason.stack) || e.reason)));

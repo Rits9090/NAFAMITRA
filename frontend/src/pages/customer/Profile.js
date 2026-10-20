@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import PhoneProfileCard from '@/components/PhoneProfileCard';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import api, { errMsg, fetchConfig } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
 import { QrCode, Copy, Link2, LogOut, Languages, Store, UserCircle2, Repeat2, Loader2 } from 'lucide-react';
-import { LanguageSwitcher } from '@/pages/Login';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 
 export function CustomerProfile() {
   const { t } = useI18n();
@@ -127,6 +128,9 @@ export function CustomerProfile() {
           </button>
         ))}
       </div>
+
+      {/* Signed-in account: optional mobile number (profile info, no OTP) */}
+      <PhoneProfileCard />
 
       {/* Privacy & data control (§55) */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4" data-testid="privacy-card">

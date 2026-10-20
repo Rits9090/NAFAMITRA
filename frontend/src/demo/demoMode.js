@@ -7,6 +7,8 @@
  *   flag is on (see lib/api.js), and server-side authorization is untouched.
  */
 
+import { DEMO_ENABLED } from '@/lib/demoFlag';
+
 const KEY = 'nafamitra_demo';
 let current = null;
 const listeners = new Set();
@@ -15,9 +17,16 @@ try {
   const saved = localStorage.getItem(KEY);
   if (saved === 'merchant' || saved === 'customer') current = saved;
 } catch { /* private mode — start clean */ }
+// Production builds compile demo support out entirely: any stale flag from
+// an older/local build is ignored AND purged, so editing localStorage can
+// never unlock a shell (§4.2).
+if (!DEMO_ENABLED && current !== null) {
+  current = null;
+  try { localStorage.removeItem(KEY); } catch { /* ignore */ }
+}
 
 export function getDemo() {
-  return current;
+  return DEMO_ENABLED ? current : null;
 }
 
 export function isDemo(role) {
@@ -25,6 +34,7 @@ export function isDemo(role) {
 }
 
 export function setDemo(role) {
+  if (!DEMO_ENABLED) role = null;
   current = role === 'merchant' || role === 'customer' ? role : null;
   try {
     if (current) localStorage.setItem(KEY, current);

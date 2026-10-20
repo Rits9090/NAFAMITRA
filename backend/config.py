@@ -82,6 +82,30 @@ ADMIN_PHONES = {
     ) if np
 }
 
+# ---------------------------------------------------------------------------
+# Supabase Auth (identity provider). SUPABASE_JWT_SECRET is a SERVER-SIDE
+# secret — never expose it to the frontend or commit it anywhere.
+# ---------------------------------------------------------------------------
+SUPABASE = {
+    'url': os.environ.get('SUPABASE_URL', '').strip().rstrip('/'),
+    'jwt_secret': os.environ.get('SUPABASE_JWT_SECRET', '').strip(),
+}
+SUPABASE['enabled'] = bool(SUPABASE['url'] or SUPABASE['jwt_secret'])
+
+# ---------------------------------------------------------------------------
+# Authentication surface gates (secure defaults: OFF).
+#   * phone OTP entry   — legacy pilot path; production uses Supabase Auth.
+#   * password auth     — legacy backend login used by automated tests only.
+#   * /api/seed         — creates demo business data; tests/local only.
+# Production must leave ALL three unset so no bypass path exists alongside
+# Supabase email/Google authentication.
+# ---------------------------------------------------------------------------
+AUTH_GATES = {
+    'phone_otp': _bool('ALLOW_PHONE_OTP', 'false'),
+    'password': _bool('ALLOW_LEGACY_PASSWORD_AUTH', 'false'),
+    'seed': _bool('ALLOW_SEED', 'false'),
+}
+
 SESSION_TOKEN_DAYS = int(os.environ.get('SESSION_TOKEN_DAYS', '30'))
 PORTAL_TOKEN_MINUTES = int(os.environ.get('PORTAL_TOKEN_MINUTES', '30'))
 

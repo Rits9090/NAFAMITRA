@@ -50,6 +50,7 @@ async def ensure_indexes() -> None:
     await db.users.create_index('id', unique=True)
     await db.users.create_index('phone_normalized', unique=True, sparse=True)
     await db.users.create_index('email', unique=True, sparse=True)
+    await db.users.create_index('supabase_uid', unique=True, sparse=True)
 
     await db.memberships.create_index([('shop_id', 1), ('user_id', 1)], unique=True)
     await db.memberships.create_index('user_id')

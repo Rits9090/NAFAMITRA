@@ -3,10 +3,12 @@ import '@/App.css';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { DEMO_ENABLED } from '@/lib/demoFlag';
 import { I18nProvider } from '@/i18n';
 import ErrorBoundary from '@/components/ErrorBoundary';
 
 const Login = lazy(() => import('@/pages/Login'));
+const AuthCallback = lazy(() => import('@/pages/AuthCallback'));
 const Onboarding = lazy(() => import('@/pages/Onboarding'));
 const Layout = lazy(() => import('@/components/Layout'));
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
@@ -67,7 +69,7 @@ function MerchantGuard({ children }) {
     if (!activeShop) { refresh(); return null; }
     return children;
   }
-  if (demo === 'merchant') return children;
+  if (DEMO_ENABLED && demo === 'merchant') return children;
   return <Navigate to="/auth" replace state={{ from: location.pathname }} />;
 }
 
@@ -79,15 +81,15 @@ function CustomerGuard({ children }) {
     if (kind === 'merchant') return <Navigate to="/" replace />;
     return children;
   }
-  if (demo === 'customer') return children;
+  if (DEMO_ENABLED && demo === 'customer') return children;
   return <Navigate to="/auth" replace state={{ from: location.pathname }} />;
 }
 
 function HomeRedirect() {
   const { token, kind, shops, demo } = useAuth();
   if (!token) {
-    if (demo === 'merchant') return <Navigate to="/dashboard" replace />;
-    if (demo === 'customer') return <Navigate to="/c" replace />;
+    if (DEMO_ENABLED && demo === 'merchant') return <Navigate to="/dashboard" replace />;
+    if (DEMO_ENABLED && demo === 'customer') return <Navigate to="/c" replace />;
     return <Navigate to="/auth" replace />;
   }
   if (kind === 'customer') return <Navigate to="/c" replace />;
@@ -105,6 +107,7 @@ function AppRoutes() {
       <Routes>
         {/* Public */}
         <Route path="/auth" element={<Login />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/login" element={<Navigate to="/auth" replace />} />
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/receipt/:token" element={<PublicReceipt />} />

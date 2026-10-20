@@ -53,6 +53,7 @@ async function open() {
     pretendToBeVisual: true,
     virtualConsole: vc,
     beforeParse(window) {
+      window.fetch = () => Promise.reject(new TypeError('Failed to fetch'));
       window.matchMedia = (q) => ({
         matches: false, media: q, addListener() {}, removeListener() {},
         addEventListener() {}, removeEventListener() {}, dispatchEvent() { return false; },

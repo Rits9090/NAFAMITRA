@@ -8,7 +8,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
 import Modal from '@/components/Modal';
-import { LanguageSwitcher } from '@/pages/Login';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 
 const mainNav = [
   { to: '/', labelKey: 'nav.dashboard', icon: LayoutDashboard, exact: true },

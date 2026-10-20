@@ -69,6 +69,10 @@ async def get_public_config():
 
 @api_router.post("/seed")
 async def seed_demo():
+    import config as _config
+    if not _config.AUTH_GATES['seed']:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Not found")
     from seed_data import seed_demo_business
     from database import db
     from migrate import run_migrations

@@ -65,6 +65,9 @@ class OtpVerify(BaseModel):
 
 @router.post('/request-otp')
 async def api_request_otp(req: OtpRequest):
+    if not config.AUTH_GATES['phone_otp']:
+        raise Forbidden('Phone OTP entry is disabled on this deployment.',
+                        'फोन OTP प्रवेश या डिप्लॉयमेंटवर बंद आहे.')
     phone = normalize_phone(req.phone)
     if not phone:
         raise AppError('Please enter a valid 10-digit mobile number.',
@@ -75,6 +78,9 @@ async def api_request_otp(req: OtpRequest):
 
 @router.post('/verify-otp')
 async def api_verify_otp(req: OtpVerify):
+    if not config.AUTH_GATES['phone_otp']:
+        raise Forbidden('Phone OTP entry is disabled on this deployment.',
+                        'फोन OTP प्रवेश या डिप्लॉयमेंटवर बंद आहे.')
     phone = normalize_phone(req.phone)
     if not phone:
         raise AppError('Please enter a valid 10-digit mobile number.',
@@ -156,17 +162,153 @@ def _safe_user(user: dict) -> dict:
             if k not in ('password_hash', '_id', 'phone_normalized')}
 
 
+async def ensure_supabase_person(payload: dict) -> Optional[dict]:
+    """Idempotent app-profile creation for a Supabase session.
+
+    * One profile per auth UUID (the Supabase ``sub`` IS the app user id) —
+      repeated logins/refreshes never create duplicate rows.
+    * Only verified token claims are used (never client-supplied ids).
+    * Missing fields are filled on later logins; user-edited values are never
+      overwritten. Accounts that merely share an email are NOT merged — the
+      Supabase profile simply keeps the email out of the shared unique column
+      (support can link them deliberately later).
+    """
+    if not payload.get('supabase'):
+        return None
+    uid = payload['user_id']
+    meta = payload.get('user_metadata') or {}
+    claim_name = (meta.get('full_name') or meta.get('name') or '').strip() or None
+    claim_email = (payload.get('email') or '').strip().lower() or None
+    claim_phone = normalize_phone(payload.get('phone')) if payload.get('phone') else None
+
+    person = await db.users.find_one({'id': uid}, {'_id': 0})
+    if person:
+        sets = {}
+        if not person.get('email') and claim_email:
+            if not await db.users.find_one({'email': claim_email}, {'_id': 1}):
+                sets['email'] = claim_email
+        if not person.get('name') and claim_name:
+            sets['name'] = claim_name
+        if not person.get('phone_normalized') and claim_phone:
+            if not await db.users.find_one({'phone_normalized': claim_phone}, {'_id': 1}):
+                sets['phone'] = claim_phone
+                sets['phone_normalized'] = claim_phone
+        if sets:
+            sets['updated_at'] = _now()
+            try:
+                await db.users.update_one({'id': uid}, {'$set': sets})
+            except Exception:
+                pass  # unique-index race — keep the existing row as-is
+            person = await db.users.find_one({'id': uid}, {'_id': 0})
+        return person
+
+    doc = {
+        'id': uid,
+        'supabase_uid': uid,
+        'name': claim_name,
+        'business_id': None,
+        'role': 'owner',
+        'is_active': True,
+        'created_at': _now(),
+        'created_via': 'supabase',
+    }
+    # Unique columns: only claim them when they are actually free (§8: never
+    # merge with an existing account that happens to share an email/phone).
+    if claim_email and not await db.users.find_one({'email': claim_email}, {'_id': 1}):
+        doc['email'] = claim_email
+    elif claim_email:
+        doc['supabase_email'] = claim_email
+    if claim_phone and not await db.users.find_one({'phone_normalized': claim_phone}, {'_id': 1}):
+        doc['phone'] = claim_phone
+        doc['phone_normalized'] = claim_phone
+    elif claim_phone:
+        doc['supabase_phone'] = claim_phone
+    try:
+        await db.users.insert_one(dict(doc))
+        doc.pop('_id', None)
+        return doc
+    except Exception:
+        # concurrent first login — reuse the row the other request created
+        return await db.users.find_one({'id': uid}, {'_id': 0})
+
+
 @router.get('/me')
 async def me(user: dict = Depends(get_current_user)):
     if user.get('scope') == 'portal':
         raise Forbidden('Not available for customer portal sessions.')
-    person = await db.users.find_one({'id': user['user_id']}, {'_id': 0})
+    if user.get('supabase'):
+        person = await ensure_supabase_person(user)
+    else:
+        person = await db.users.find_one({'id': user['user_id']}, {'_id': 0})
     if not person:
         raise Unauthorized('Please sign in again.', 'कृपया पुन्हा साइन इन करा.')
     return {
         'user': _safe_user(person),
         'identities': await identity_resolution(person),
     }
+
+
+# ---------------------------------------------------------------------------
+# account profile (name + optional mobile number — information, never OTP)
+# ---------------------------------------------------------------------------
+class ProfileUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=2, max_length=80)
+    # '' or null removes the number; the field stays optional everywhere.
+    phone_number: Optional[str] = None
+
+
+@router.put('/profile')
+async def update_my_profile(req: ProfileUpdate, user: dict = Depends(get_current_user)):
+    """Edit own name / optional mobile number (no verification claimed).
+
+    Uses the existing profile schema's `phone` + `phone_normalized` columns
+    (10-digit canonical Indian form — see phones.normalize_phone); ownership
+    comes from the verified session, never from a client-supplied id.
+    """
+    if user.get('scope') == 'portal':
+        raise Forbidden('Not available for customer portal sessions.')
+    if user.get('supabase'):
+        person = await ensure_supabase_person(user)
+    else:
+        person = await db.users.find_one({'id': user['user_id']}, {'_id': 0})
+    if not person:
+        raise Unauthorized('Please sign in again.', 'कृपया पुन्हा साइन इन करा.')
+
+    sets = {}
+    unset = {}
+    if req.name is not None:
+        sets['name'] = req.name.strip()
+    if req.phone_number is not None:
+        raw = req.phone_number.strip()
+        if not raw:
+            unset['phone'] = ''
+            unset['phone_normalized'] = ''
+            sets.pop('phone', None)
+        else:
+            norm = normalize_phone(raw)
+            if not norm:
+                raise AppError('Please enter a valid 10-digit mobile number.',
+                               400, 'invalid_phone',
+                               'कृपया वैध 10 अंकी मोबाईल नंबर भरा.')
+            taken = await db.users.find_one(
+                {'phone_normalized': norm, 'id': {'$ne': person['id']}}, {'_id': 1})
+            if taken:
+                raise AppError('This mobile number is already linked to another account.',
+                               400, 'phone_taken',
+                               'हा मोबाईल नंबर दुसऱ्या खात्याशी जोडलेला आहे.')
+            sets['phone'] = norm
+            sets['phone_normalized'] = norm
+
+    update = {}
+    if sets:
+        sets['updated_at'] = _now()
+        update['$set'] = sets
+    if unset:
+        update['$unset'] = unset
+    if update:
+        await db.users.update_one({'id': person['id']}, update)
+    fresh = await db.users.find_one({'id': person['id']}, {'_id': 0}) or person
+    return {'user': _safe_user(fresh)}
 
 
 # ---------------------------------------------------------------------------
@@ -368,6 +510,9 @@ class BusinessSetupRequest(BaseModel):
 
 @router.post('/register')
 async def register(req: RegisterRequest):
+    if not config.AUTH_GATES['password']:
+        raise Forbidden('Password registration is disabled on this deployment.',
+                        'पासवर्ड नोंदणी या डिप्लॉयमेंटवर बंद आहे.')
     existing = await db.users.find_one({'email': req.email.lower()}, {'_id': 0})
     if existing:
         raise AppError('This email is already registered.', 400, 'email_taken')
@@ -392,6 +537,9 @@ async def register(req: RegisterRequest):
 
 @router.post('/login')
 async def login(req: LoginRequest):
+    if not config.AUTH_GATES['password']:
+        raise Forbidden('Password login is disabled on this deployment.',
+                        'पासवर्ड लॉगिन या डिप्लॉयमेंटवर बंद आहे.')
     person = await db.users.find_one({'email': req.email.lower()}, {'_id': 0})
     if not person or not verify_password(req.password, person.get('password_hash', '')):
         raise Unauthorized('Invalid email or password.')

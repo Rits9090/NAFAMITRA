@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { Home, Store, Receipt, UserCircle2, Repeat2, LogOut } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
-import { LanguageSwitcher } from '@/pages/Login';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 
 // Customer shell: 4 primary tabs per spec — Home / Bills / My Stores /
 // Profile. Search, DhanLabh history, notifications and Ask Nafa remain

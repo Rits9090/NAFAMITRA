@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import PhoneProfileCard from '@/components/PhoneProfileCard';
 import { toast } from 'sonner';
 import api, { errMsg } from '@/lib/api';
 import { SUPPORT_WHATSAPP, APP_VERSION } from '@/lib/config';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
 import { Settings as SettingsIcon, Store, Save, Heart, Languages, Info, MessageCircle } from 'lucide-react';
-import { LanguageSwitcher } from '@/pages/Login';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 
 export default function Settings() {
   const { t } = useI18n();
@@ -88,6 +89,9 @@ export default function Settings() {
         <h1 className="text-2xl font-extrabold text-slate-800" style={{ fontFamily: 'Outfit,sans-serif' }}>{t('nav.settings')}</h1>
         <p className="text-slate-500 text-sm">{t('settings.sub')}</p>
       </div>
+
+      {/* Signed-in account: optional mobile number (profile info, no OTP) */}
+      <PhoneProfileCard />
 
       {/* Shop profile */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">

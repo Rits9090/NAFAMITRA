@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
-import { LanguageSwitcher } from '@/pages/Login';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 
 const items = [
   { to: '/products', labelKey: 'nav.products', icon: Package },

@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
 import { track, ACTIVATION } from '@/lib/analytics';
 import { errMsg, API_BASE } from '@/lib/api';
-import { LanguageSwitcher } from '@/pages/Login';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { toast } from 'sonner';
 import {
   Store, User, ArrowRight, MapPin, Crosshair, Sparkles, Package, PartyPopper,

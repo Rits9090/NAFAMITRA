@@ -37,6 +37,7 @@ const TARGET = process.env.SMOKE_URL || 'http://127.0.0.1:3100/';
         return { matches: false, media: q, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent() { return false; } };
       };
       window.scrollTo = () => {};
+      window.fetch = () => Promise.reject(new TypeError('Failed to fetch'));
       window.addEventListener('error', (e) => pageErrors.push('window.onerror: ' + ((e.error && e.error.stack) || e.message)));
       window.addEventListener('unhandledrejection', (e) => pageErrors.push('unhandledrejection: ' + ((e.reason && e.reason.stack) || e.reason)));
     },

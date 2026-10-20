@@ -1,14 +1,14 @@
 /**
- * Auth error-path E2E: serves the REAL production build behind a stub API
- * that reproduces the production failure modes, then drives the login form
- * and asserts the user sees a SPECIFIC localized message — never the old
- * "Request failed. Please try again." mask.
+ * Auth error-path E2E: serves the REAL production build, then simulates the
+ * failure modes a user can hit at sign-in and asserts a SPECIFIC localized
+ * message — never a raw provider error, never a generic "Request failed"
+ * mask, never a fake success.
  *
  *   node scripts/auth_error_e2e.js   [mode=html404|rate429|badphone]
  *
- * - html404 : static host / missing backend (HTML 404/rewrite response)
- * - rate429 : HTTP 429 without the NafaMitra error envelope
- * - badphone: real API envelope, code=invalid_phone
+ * - html404 : Supabase auth endpoint answers with an HTML 404 page
+ * - rate429 : HTTP 429 with the GoTrue rate-limit envelope
+ * - badphone: client-side validation of the optional signup phone (no OTP)
  */
 const http = require('http');
 const fs = require('fs');
@@ -21,28 +21,22 @@ const BUILD = path.resolve(__dirname, '..', 'build');
 
 const STUBS = {
   html404: {
+    kind: 'response',
     status: 404,
     headers: { 'content-type': 'text/html; charset=utf-8' },
     body: '<!DOCTYPE html><html><head><title>404 Not Found</title></head><body>404 Not Found</body></html>',
-    expect: 'सेवा सध्या उपलब्ध नाही', // err.unavailable (mr, default lang)
-    expectKey: 'unavailable',
+    expectAny: ['नेटवर्क', 'काहीतरी चूक'], // errNetwork / errGeneric (mr)
   },
   rate429: {
+    kind: 'response',
     status: 429,
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ message: 'Too many requests' }),
-    expect: 'खूप वेळांनी OTP विनंती केली', // err.rateLimited (mr)
-    expectKey: 'rateLimited',
+    headers: { 'content-type': 'application/json; charset=utf-8' },
+    body: JSON.stringify({ error: 'over_request_rate_limit', error_description: 'Request rate limit exceeded' }),
+    expectAny: ['खूप वेळांनी'], // errRateLimited (mr)
   },
   badphone: {
-    status: 400,
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      error: { code: 'invalid_phone', message: 'Please enter a valid 10-digit mobile number.',
-               message_mr: 'कृपया वैध 10 अंकी मोबाइल क्रमांक टाका.' },
-    }),
-    expect: 'वैध 10 अंकी', // auth.invalidPhone (mr)
-    expectKey: 'invalidPhone',
+    kind: 'client',
+    expectAny: ['वैध 10 अंकी'], // auth.invalidPhone (mr)
   },
 };
 const stub = STUBS[MODE];
@@ -51,15 +45,8 @@ if (!stub) { console.error('unknown mode', MODE); process.exit(2); }
 const MIME = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html',
   '.json': 'application/json', '.png': 'image/png', '.ico': 'image/x-icon', '.map': 'application/json' };
 
-let apiHits = 0;
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
-  if (url.pathname.startsWith('/api/')) {
-    apiHits++;
-    res.writeHead(stub.status, stub.headers);
-    res.end(stub.body);
-    return;
-  }
   let file = path.join(BUILD, url.pathname);
   if (!file.startsWith(BUILD)) { res.writeHead(403); res.end(); return; }
   let ok = false;
@@ -81,13 +68,13 @@ class LocalOnly extends ResourceLoader {
   console.log(`== AUTH ERROR E2E [${MODE}] on :${PORT} ==`);
 
   const consoleErrors = [];
-  const diagLogs = [];
   const vc = new VirtualConsole();
   vc.on('jsdomError', () => {});
   vc.on('error', (...a) => consoleErrors.push(a.map(String).join(' ')));
-  vc.on('warn', (...a) => { const s = a.map(String).join(' '); if (s.includes('[api-error]')) diagLogs.push(s); });
+  vc.on('warn', () => {});
   vc.on('log', () => {});
 
+  const supabaseHits = [];
   const dom = await JSDOM.fromURL(`http://127.0.0.1:${PORT}/`, {
     runScripts: 'dangerously', resources: new LocalOnly(), pretendToBeVisual: true,
     virtualConsole: vc,
@@ -95,6 +82,19 @@ class LocalOnly extends ResourceLoader {
       window.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {},
         addEventListener() {}, removeEventListener() {}, dispatchEvent() { return false; } });
       window.scrollTo = () => {};
+      // Route every Supabase auth call through this mode's stub response.
+      const NodeResponse = global.Response;
+      window.fetch = async (input, init) => {
+        const url = typeof input === 'string' ? input : (input && input.url) || String(input);
+        supabaseHits.push({ url: String(url), method: (init && init.method) || 'GET' });
+        if (MODE === 'badphone') {
+          // Client-side validation must prevent this — if we get here the
+          // test still fails below; answer with a plausible network error.
+          const err = new TypeError('Failed to fetch');
+          throw err;
+        }
+        return new NodeResponse(stub.body, { status: stub.status, headers: stub.headers });
+      };
     },
   });
   const win = dom.window;
@@ -118,28 +118,49 @@ class LocalOnly extends ResourceLoader {
     else { failures++; console.log('  ✗', name, extra !== undefined ? String(extra).slice(0, 220) : ''); }
   };
 
-  // journey → merchant login → phone → send OTP → error shown
-  check('landing', !!(await waitFor('[data-testid="journey-landing"]')));
-  click(await waitFor('[data-testid="journey-merchant-login"]'));
-  check('phone form', !!(await waitFor('[data-testid="phone-form"]')));
-  const phone = await waitFor('[data-testid="phone-input"]');
-  type(phone, '9876543210');
-  const form = win.document.querySelector('[data-testid="phone-form"]');
-  form.dispatchEvent(new win.Event('submit', { bubbles: true, cancelable: true }));
+  if (MODE === 'badphone') {
+    // journey → signup → invalid phone → inline localized error, NO request
+    check('landing', !!(await waitFor('[data-testid="journey-landing"]')));
+    click(await waitFor('[data-testid="journey-merchant-signup"]'));
+    check('signup form', !!(await waitFor('[data-testid="auth-signup-form"]')));
+    type(await waitFor('[data-testid="auth-email-input"]'), 'phone.err@example.com');
+    type(await waitFor('[data-testid="auth-password-input"]'), 'Supabase@123');
+    type(await waitFor('[data-testid="auth-confirm-input"]'), 'Supabase@123');
+    type(await waitFor('[data-testid="auth-phone-input"]'), '12345');
+    win.document.querySelector('[data-testid="auth-signup-form"]')
+      .dispatchEvent(new win.Event('submit', { bubbles: true, cancelable: true }));
+    const phoneErr = await waitFor('[data-testid="auth-signup-form"] [role="alert"]', 6000);
+    check('error region appears', !!phoneErr);
+    const shown = phoneErr ? phoneErr.textContent : '';
+    console.log('  message:', JSON.stringify(shown));
+    check('localized expected message', stub.expectAny.some((x) => shown.includes(x)), shown);
+    check('NO request was made (client validation)', supabaseHits.length === 0, JSON.stringify(supabaseHits));
+    check('no crash (page errors)', consoleErrors.length === 0, consoleErrors.slice(0, 2));
+    check('recoverable UI (form still there)', !!(await waitFor('[data-testid="auth-signup-form"]')));
+  } else {
+    // journey → sign-in → stubbed provider failure → localized message
+    check('landing', !!(await waitFor('[data-testid="journey-landing"]')));
+    click(await waitFor('[data-testid="journey-merchant-login"]'));
+    check('sign-in form', !!(await waitFor('[data-testid="auth-signin-form"]')));
+    type(await waitFor('[data-testid="auth-email-input"]'), 'err.path@example.com');
+    type(await waitFor('[data-testid="auth-password-input"]'), 'Supabase@123');
+    win.document.querySelector('[data-testid="auth-signin-form"]')
+      .dispatchEvent(new win.Event('submit', { bubbles: true, cancelable: true }));
 
-  const errEl = await waitFor('[data-testid="phone-error"]', 8000);
-  check('error region appears', !!errEl);
-  const shown = errEl ? errEl.textContent : '';
-  console.log('  message:', JSON.stringify(shown));
-  check('NO generic "Request failed" mask', !shown.includes('Request failed'), shown);
-  check('localized expected message', shown.includes(stub.expect), `${shown} vs ${stub.expect}`);
-  check('API was actually called', apiHits >= 1, apiHits);
-  check('diagnostic logged (no secrets)', diagLogs.some((l) => {
-    try { const d = JSON.parse(l.slice(l.indexOf('{'))); return d.code && d.path && !/otp|token/i.test(l); } catch { return false; }
-  }), diagLogs);
-  check('message does not leak internals', !/Traceback|SQL|stack|html/i.test(shown), shown);
-  check('no crash (page errors)', consoleErrors.length === 0, consoleErrors.slice(0, 2));
-  check('recoverable UI (form still there)', !!win.document.querySelector('[data-testid="phone-form"]'));
+    const errEl = await waitFor('[data-testid="auth-error"]', 10000);
+    check('error region appears', !!errEl);
+    const shown = errEl ? errEl.textContent : '';
+    console.log('  message:', JSON.stringify(shown));
+    check('NO generic "Request failed" mask', !shown.includes('Request failed'), shown);
+    check('localized expected message', stub.expectAny.some((x) => shown.includes(x)),
+      `${shown} vs ${JSON.stringify(stub.expectAny)}`);
+    check('provider was actually called', supabaseHits.some((h) => h.url.includes('izfcjxabnahcsmzhosuo.supabase.co')),
+      JSON.stringify(supabaseHits.map((h) => h.url)));
+    check('no raw provider/stack leak', !/Traceback|SQL|stack|gotrue|AuthApiError|sb_publishable/i.test(shown), shown);
+    check('no session created', !win.localStorage.getItem('nafamitra_token'));
+    check('no crash (page errors)', consoleErrors.length === 0, consoleErrors.slice(0, 2));
+    check('recoverable UI (form still there)', !!(await waitFor('[data-testid="auth-signin-form"]')));
+  }
 
   console.log(failures === 0 ? `AUTH ERROR E2E [${MODE}]: PASS` : `AUTH ERROR E2E [${MODE}]: FAIL (${failures})`);
   win.close();
