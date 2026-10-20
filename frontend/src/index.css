@@ -131,3 +131,68 @@
     padding-left: inherit; padding-right: inherit; padding-top: inherit; padding-bottom: inherit;
   }
 }
+
+/* ── Shared overlay (components/Modal.jsx) ─────────────────────────────
+   Portalled to document.body so page-level transforms can never trap it.
+   Viewport-aware: max-height uses dvh with a vh fallback, bottom padding
+   respects notches/home-indicators, content scrolls inside the panel. */
+.nm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 1rem;
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+@media (min-width: 640px) {
+  .nm-overlay-sheet { align-items: center; }
+}
+.nm-overlay-center { align-items: center; }
+.nm-overlay-drawer { align-items: stretch; justify-content: flex-start; padding: 0; }
+.nm-overlay-bg { position: absolute; inset: 0; background: rgba(2, 6, 23, 0.5); }
+.nm-panel {
+  position: relative;
+  width: 100%;
+  background: #fff;
+  border-radius: 1rem;
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  outline: none;
+  animation: nmPanelIn 0.22s ease;
+  max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 2rem);
+}
+@keyframes nmPanelIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.nm-overlay-center .nm-panel { animation-name: nmPanelInCenter; }
+@keyframes nmPanelInCenter {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+.nm-panel-xs { max-width: 18rem; }
+.nm-panel-sm { max-width: 24rem; }
+.nm-panel-md { max-width: 28rem; }
+.nm-panel-lg { max-width: 32rem; }
+.nm-overlay-drawer .nm-panel {
+  max-width: 16rem;
+  width: auto;
+  height: 100%;
+  max-height: 100%;
+  border-radius: 0;
+  animation-name: nmDrawerIn;
+}
+@keyframes nmDrawerIn {
+  from { transform: translateX(-20px); opacity: 0.7; }
+  to { transform: translateX(0); opacity: 1; }
+}
+body.nm-scroll-lock { overflow: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fadeInUp, .animate-slideInRight, .nm-panel { animation: none !important; }
+}

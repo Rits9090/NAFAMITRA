@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, MicOff, X, CheckCircle, AlertCircle, Loader, Volume2 } from 'lucide-react';
 import { toast } from 'sonner';
-import axios from 'axios';
 import { VOICE } from '@/constants/testIds';
+import api, { errMsg } from '@/lib/api';
+import Modal from '@/components/Modal';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const STATES = { IDLE: 'idle', LISTENING: 'listening', TRANSCRIBING: 'transcribing', UNDERSTANDING: 'understanding', REVIEW: 'review', EXECUTING: 'executing', SUCCESS: 'success', ERROR: 'error' };
 
@@ -65,11 +65,11 @@ export default function VoiceButton() {
     try {
       const formData = new FormData();
       formData.append('audio', blob, 'voice.webm');
-      const { data: sttData } = await axios.post(`${API}/voice/transcribe`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const { data: sttData } = await api.post(`/voice/transcribe`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       const text = sttData.transcription;
       setTranscription(text);
       setState(STATES.UNDERSTANDING);
-      const { data: intentResult } = await axios.post(`${API}/voice/understand`, { transcription: text });
+      const { data: intentResult } = await api.post(`/voice/understand`, { transcription: text });
       setIntentData(intentResult);
       setState(STATES.REVIEW);
     } catch (err) {
@@ -82,7 +82,7 @@ export default function VoiceButton() {
     if (!intentData) return;
     setState(STATES.EXECUTING);
     try {
-      const { data } = await axios.post(`${API}/voice/execute`, {
+      const { data } = await api.post(`/voice/execute`, {
         intent: intentData.intent,
         entities: intentData,
         session_id: intentData.session_id
@@ -92,7 +92,7 @@ export default function VoiceButton() {
       toast.success(data.message || 'Command executed successfully!');
     } catch (err) {
       setState(STATES.ERROR);
-      setResult({ error: err.response?.data?.detail || 'Execution failed.' });
+      setResult({ error: errMsg(err, 'Execution failed.') });
     }
   };
 
@@ -106,7 +106,7 @@ export default function VoiceButton() {
     setTranscription(cmd);
     setState(STATES.UNDERSTANDING);
     try {
-      const { data: intentResult } = await axios.post(`${API}/voice/understand`, { transcription: cmd });
+      const { data: intentResult } = await api.post(`/voice/understand`, { transcription: cmd });
       setIntentData(intentResult);
       setState(STATES.REVIEW);
     } catch {
@@ -147,9 +147,7 @@ export default function VoiceButton() {
       )}
 
       {/* Voice Modal */}
-      {isOpen && (
-        <div data-testid={VOICE.modal} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-fadeInUp">
+      <Modal open={isOpen} onClose={handleClose} panelTestId={VOICE.modal} label="NafaMitra Voice" size="md">
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-slate-100">
               <div className="flex items-center gap-2">
@@ -297,9 +295,7 @@ export default function VoiceButton() {
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      )}
+      </Modal>
     </>
   );
 }

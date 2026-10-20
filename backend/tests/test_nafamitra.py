@@ -110,9 +110,10 @@ def test_search_customer(headers):
     assert len(customers) >= 1
 
 def test_create_customer(headers):
+    import random
     resp = requests.post(f"{BASE_URL}/api/customers", headers=headers, json={
         "name": "TEST_Customer_New",
-        "phone": "7777777777",
+        "phone": str(random.randint(7000000000, 9999999999)),
         "address": "Test Address"
     })
     assert resp.status_code in [200, 201]

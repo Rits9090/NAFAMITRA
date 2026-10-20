@@ -1,22 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
 import { Send, Sparkles, User, Bot, Trash2, Plus, MessageSquare } from 'lucide-react';
 import { AI } from '@/constants/testIds';
+import api, { API_BASE } from '@/lib/api';
+import { useI18n } from '@/i18n';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const SUGGESTED_QUERIES = [
-  "How are my sales this month?",
-  "Which products give the highest profit margin?",
-  "Who are my top customers?",
-  "Which customers should I bring back?",
-  "What's my total outstanding udhaar?",
-  "Which products are running low on stock?",
-  "How can I increase repeat customers?",
-  "What's my average bill value this month?",
+  'ai.sq1', 'ai.sq2', 'ai.sq3', 'ai.sq4',
+  'ai.sq5', 'ai.sq6', 'ai.sq7', 'ai.sq8',
 ];
 
 export default function AIAssistant() {
+  const { t } = useI18n();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -45,9 +40,14 @@ export default function AIAssistant() {
     setMessages(prev => [...prev, assistantMsg]);
 
     try {
-      const response = await fetch(`${API}/assistant/chat`, {
+      const shopId = localStorage.getItem('nafamitra_shop');
+      const response = await fetch(`${API_BASE}/assistant/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('nafamitra_token')}` },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('nafamitra_token')}`,
+          ...(shopId ? { 'X-Shop-Id': shopId } : {}),
+        },
         body: JSON.stringify({ message: msg, session_id: sessionId })
       });
 
@@ -71,7 +71,7 @@ export default function AIAssistant() {
       }
       setMessages(prev => prev.map(m => m.id === assistantMsg.id ? { ...m, content: fullContent, streaming: false } : m));
     } catch (err) {
-      setMessages(prev => prev.map(m => m.id === assistantMsg.id ? { ...m, content: 'Sorry, I encountered an error. Please try again.', streaming: false } : m));
+      setMessages(prev => prev.map(m => m.id === assistantMsg.id ? { ...m, content: t('ai.error'), streaming: false } : m));
     } finally {
       setLoading(false);
     }
@@ -79,7 +79,7 @@ export default function AIAssistant() {
 
   const clearChat = async () => {
     try {
-      await axios.delete(`${API}/assistant/sessions/${sessionId}`);
+      await api.delete(`/assistant/sessions/${sessionId}`);
     } catch {}
     const newSessionId = `session_${Date.now()}`;
     setSessionId(newSessionId);
@@ -95,13 +95,13 @@ export default function AIAssistant() {
             <Sparkles className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-extrabold text-slate-800" style={{fontFamily:'Outfit,sans-serif'}}>AI Business Assistant</h1>
-            <p className="text-xs text-slate-400">Ask anything about your business</p>
+            <h1 className="text-xl font-extrabold text-slate-800" style={{fontFamily:'Outfit,sans-serif'}}>{t('nav.assistant')}</h1>
+            <p className="text-xs text-slate-400">{t('ai.sub')}</p>
           </div>
         </div>
         <button onClick={clearChat} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-slate-500 text-sm hover:bg-slate-50">
           <Plus className="w-4 h-4" />
-          New Chat
+          {t('ai.newChat')}
         </button>
       </div>
 
@@ -112,12 +112,12 @@ export default function AIAssistant() {
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center mx-auto mb-4">
               <Sparkles className="w-8 h-8 text-white" />
             </div>
-            <h3 className="font-bold text-slate-700 text-lg" style={{fontFamily:'Outfit,sans-serif'}}>NafaMitra AI</h3>
-            <p className="text-slate-400 text-sm mt-1 max-w-sm">Your intelligent business advisor. Ask about sales, customers, profits, inventory, and more.</p>
+            <h3 className="font-bold text-slate-700 text-lg" style={{fontFamily:'Outfit,sans-serif'}}>{t('ai.brand')}</h3>
+            <p className="text-slate-400 text-sm mt-1 max-w-sm">{t('ai.emptySub')}</p>
             <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg">
               {SUGGESTED_QUERIES.slice(0, 4).map((q, i) => (
-                <button key={i} onClick={() => sendMessage(q)} className="text-left p-3 rounded-xl bg-slate-50 hover:bg-purple-50 hover:border-purple-200 border border-slate-100 text-sm text-slate-600 hover:text-purple-700 transition-colors">
-                  {q}
+                <button key={i} onClick={() => sendMessage(t(q))} className="text-left p-3 rounded-xl bg-slate-50 hover:bg-purple-50 hover:border-purple-200 border border-slate-100 text-sm text-slate-600 hover:text-purple-700 transition-colors">
+                  {t(q)}
                 </button>
               ))}
             </div>
@@ -141,8 +141,8 @@ export default function AIAssistant() {
       {messages.length > 0 && !loading && (
         <div className="flex gap-2 overflow-x-auto pb-2 flex-shrink-0">
           {SUGGESTED_QUERIES.slice(0, 4).map((q, i) => (
-            <button key={i} onClick={() => sendMessage(q)} className="flex-shrink-0 text-xs bg-white border border-slate-200 text-slate-600 px-3 py-2 rounded-full hover:bg-purple-50 hover:border-purple-200 hover:text-purple-700 transition-colors">
-              {q}
+            <button key={i} onClick={() => sendMessage(t(q))} className="flex-shrink-0 text-xs bg-white border border-slate-200 text-slate-600 px-3 py-2 rounded-full hover:bg-purple-50 hover:border-purple-200 hover:text-purple-700 transition-colors">
+              {t(q)}
             </button>
           ))}
         </div>
@@ -157,7 +157,7 @@ export default function AIAssistant() {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-            placeholder="Ask about your sales, customers, products..."
+            placeholder={t('ai.ph')}
             disabled={loading}
             className="w-full px-4 py-3.5 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 pr-12"
           />

@@ -21,51 +21,77 @@ class ChatRequest(BaseModel):
     session_id: Optional[str] = None
 
 async def build_business_context(bid: str) -> str:
+    """Real-data context from CURRENT collections (invoices/shop_id + legacy
+    sales compatibility). Every number is recorded data — the model must
+    never invent figures on top of this."""
     now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0).isoformat()
     month_start = now.replace(day=1, hour=0, minute=0, second=0).isoformat()
 
-    sales_today = await db.sales.find({'business_id': bid, 'created_at': {'$gte': today_start}}, {'_id': 0, 'total_amount': 1, 'total_cost': 1}).to_list(500)
-    sales_month = await db.sales.find({'business_id': bid, 'created_at': {'$gte': month_start}}, {'_id': 0, 'total_amount': 1, 'total_cost': 1}).to_list(2000)
+    inv_proj = {'_id': 0, 'total_paise': 1, 'cost_paise': 1}
+    inv_today = await db.invoices.find(
+        {'shop_id': bid, 'status': 'ACTIVE', 'created_at': {'$gte': today_start}}, inv_proj).to_list(2000)
+    inv_month = await db.invoices.find(
+        {'shop_id': bid, 'status': 'ACTIVE', 'created_at': {'$gte': month_start}}, inv_proj).to_list(5000)
+    legacy_today = await db.sales.find(
+        {'business_id': bid, 'created_at': {'$gte': today_start}},
+        {'_id': 0, 'total_amount': 1, 'total_cost': 1}).to_list(1000)
+    legacy_month = await db.sales.find(
+        {'business_id': bid, 'created_at': {'$gte': month_start}},
+        {'_id': 0, 'total_amount': 1, 'total_cost': 1}).to_list(3000)
 
-    today_revenue = sum(s.get('total_amount', 0) for s in sales_today)
-    today_profit = sum(s.get('total_amount', 0) - s.get('total_cost', 0) for s in sales_today)
-    month_revenue = sum(s.get('total_amount', 0) for s in sales_month)
-    month_profit = sum(s.get('total_amount', 0) - s.get('total_cost', 0) for s in sales_month)
+    def _paise(invs, leg):
+        rev = sum(i.get('total_paise', 0) for i in invs)
+        rev += sum(int(s.get('total_amount', 0) or 0) * 100 for s in leg)
+        margin = sum(i.get('total_paise', 0) - i.get('cost_paise', 0) for i in invs)
+        margin += sum((int(s.get('total_amount', 0) or 0) - int(s.get('total_cost', 0) or 0)) * 100 for s in leg)
+        return rev, margin
 
-    total_customers = await db.customers.count_documents({'business_id': bid, 'is_active': True})
-    udhaars = await db.udhaar.find({'business_id': bid, 'outstanding': {'$gt': 0}}, {'_id': 0, 'outstanding': 1}).to_list(200)
-    total_outstanding = sum(u.get('outstanding', 0) for u in udhaars)
-    low_stock = await db.products.count_documents({'business_id': bid, 'is_active': True, '$expr': {'$lte': ['$stock_quantity', '$low_stock_threshold']}})
+    today_rev, today_margin = _paise(inv_today, legacy_today)
+    month_rev, month_margin = _paise(inv_month, legacy_month)
+    today_bills = len(inv_today) + len(legacy_today)
+    month_bills = len(inv_month) + len(legacy_month)
 
-    top_products_pipeline = [
-        {'$match': {'business_id': bid, 'created_at': {'$gte': month_start}}},
+    total_customers = await db.shop_customers.count_documents({'shop_id': bid, 'status': 'active'})
+    credits = await db.credit_accounts.find(
+        {'shop_id': bid, 'outstanding_paise': {'$gt': 0}}, {'_id': 0, 'outstanding_paise': 1}).to_list(200)
+    total_outstanding = sum(c.get('outstanding_paise', 0) for c in credits)
+    low_stock = await db.products.count_documents(
+        {'business_id': bid, 'is_active': True,
+         '$expr': {'$lte': ['$stock_quantity', '$low_stock_threshold']}})
+
+    top_products = await db.invoices.aggregate([
+        {'$match': {'shop_id': bid, 'status': 'ACTIVE', 'created_at': {'$gte': month_start}}},
         {'$unwind': '$items'},
-        {'$group': {'_id': '$items.product_name', 'revenue': {'$sum': '$items.total'}, 'qty': {'$sum': '$items.quantity'}}},
+        {'$group': {'_id': '$items.name', 'revenue': {'$sum': '$items.total_paise'},
+                    'qty': {'$sum': '$items.quantity'}}},
         {'$sort': {'revenue': -1}}, {'$limit': 5}
-    ]
-    top_products = await db.sales.aggregate(top_products_pipeline).to_list(5)
+    ]).to_list(5)
+
+    top_lines = chr(10).join(
+        f"- {p['_id']}: ₹{p['revenue'] // 100} ({p['qty']} units)" for p in top_products
+    ) or "- (no itemized sales recorded this month)"
 
     return f"""
-CURRENT BUSINESS DATA (as of {now.strftime('%d %b %Y, %I:%M %p IST')}):
+CURRENT BUSINESS DATA (as of {now.strftime('%d %b %Y, %I:%M %p IST')} — recorded figures only):
 
 Today's Performance:
-- Revenue: ₹{today_revenue:.0f}
-- Profit: ₹{today_profit:.0f}
-- Orders: {len(sales_today)}
+- Recorded sales: ₹{today_rev // 100}
+- Estimated gross margin (sales minus estimated cost): ₹{today_margin // 100}
+- Bills: {today_bills}
 
 This Month:
-- Revenue: ₹{month_revenue:.0f}
-- Profit: ₹{month_profit:.0f}
-- Orders: {len(sales_month)}
+- Recorded sales: ₹{month_rev // 100}
+- Estimated gross margin: ₹{month_margin // 100}
+- Bills: {month_bills}
 
 Business Overview:
-- Total Active Customers: {total_customers}
-- Total Outstanding Udhaar: ₹{total_outstanding:.0f}
-- Low Stock Products: {low_stock}
+- Active customer links: {total_customers}
+- Outstanding credit (udhaar): ₹{total_outstanding // 100}
+- Low stock products: {low_stock}
 
 Top Selling Products This Month:
-{chr(10).join(f"- {p['_id']}: ₹{p['revenue']:.0f} ({p['qty']} units)" for p in top_products)}
+{top_lines}
 """
 
 ASSISTANT_SYSTEM = """You are NafaMitra AI Business Advisor - a smart, friendly assistant for Indian shopkeepers.
@@ -78,7 +104,9 @@ Guidelines:
 4. Use ₹ for currency
 5. Be empathetic and encouraging
 6. If data is not available for a query, say so honestly
-7. Suggest actionable next steps when relevant"""
+7. Suggest actionable next steps when relevant
+8. Say "estimated gross margin" (recorded sales minus estimated cost) — never an unqualified "profit"
+9. Never claim to have sent a message, created a record, or performed an action you did not"""
 
 @router.post("/chat")
 async def chat(req: ChatRequest, user: dict = Depends(require_business)):
@@ -90,19 +118,12 @@ async def chat(req: ChatRequest, user: dict = Depends(require_business)):
     full_system = ASSISTANT_SYSTEM + "\n\n" + business_context
 
     if not key or key == 'your-key-here':
-        demo_responses = {
-            'sales': f"Based on your business data: Today's sales are looking good! Your revenue and profit details are available in the dashboard.",
-            'customer': "Your customer base is growing. Focus on retaining repeat customers for sustainable growth.",
-            'stock': "Some products are running low on stock. Check the inventory page for details.",
-            'profit': "Your profit margins look healthy. Consider optimizing high-selling, low-margin products.",
-        }
-        t = req.message.lower()
-        for key_word, resp in demo_responses.items():
-            if key_word in t:
-                response_text = resp
-                break
-        else:
-            response_text = "I'm your NafaMitra AI assistant! I can help you analyze sales, manage customers, track inventory, and grow your business. What would you like to know?"
+        # Honest fallback: no LLM configured → say so; never simulate analysis.
+        response_text = ("AI assistant is not configured on this server yet "
+                         "(missing AI service key), so I cannot analyse your data "
+                         "right now. Your live numbers are always available on the "
+                         "Dashboard and Reports screens. / AI सहाय्यक अद्याप "
+                         "कॉन्फिगर केलेला नाही — डॅशबोर्डवरील आकडेवारी वापरा.")
 
         async def demo_stream():
             words = response_text.split()

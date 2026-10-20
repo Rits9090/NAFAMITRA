@@ -1,221 +1,312 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { TrendingUp, Users, CreditCard, AlertTriangle, ShoppingCart, Plus, Package, IndianRupee, ArrowUpRight, ArrowDownRight, Mic, Sparkles, ChevronRight } from 'lucide-react';
-import { DASHBOARD } from '@/constants/testIds';
+import api, { errMsg } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import { useI18n } from '@/i18n';
+import { fmt, fmtCompact } from '@/lib/money';
+import { longDate } from '@/lib/dates';
+import {
+  Plus, Users, CreditCard, Receipt, UserPlus, Package, IndianRupee,
+  ArrowRight, Wallet, Repeat2, ChevronRight, Activity, TrendingUp, Gift,
+} from 'lucide-react';
+import { DASHBOARD } from '@/constants/testIds';
+import TodaysActions from '@/components/TodaysActions';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+function greetingKey() {
+  const h = new Date().getHours();
+  if (h < 12) return 'dashboard.greetingMorning';
+  if (h < 17) return 'dashboard.greetingAfternoon';
+  return 'dashboard.greetingEvening';
+}
+
+function timeAgo(iso, t) {
+  if (!iso) return t('customers.never');
+  const diff = Date.now() - new Date(iso).getTime();
+  const days = Math.floor(diff / 86400000);
+  if (days <= 0) return t('billing.agoToday');
+  if (days === 1) return t('billing.agoDays', { n: 1 });
+  return t('billing.agoDays', { n: days });
+}
 
 export default function Dashboard() {
-  const { business } = useAuth();
+  const { user, activeShop } = useAuth();
+  const { t, lang } = useI18n();
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
-  const [chart, setChart] = useState([]);
-  const [alerts, setAlerts] = useState([]);
-  const [topProducts, setTopProducts] = useState([]);
-  const [recentSales, setRecentSales] = useState([]);
+  const [recent, setRecent] = useState([]);
+  const [activity, setActivity] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    loadDashboard();
-  }, []);
-
-  const loadDashboard = async () => {
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      const [s, c, a, tp, rs] = await Promise.all([
-        axios.get(`${API}/dashboard/stats`),
-        axios.get(`${API}/dashboard/chart`),
-        axios.get(`${API}/dashboard/alerts`),
-        axios.get(`${API}/dashboard/top-products`),
-        axios.get(`${API}/dashboard/recent-sales`)
+      const [s, r, a] = await Promise.all([
+        api.get('/dashboard/stats'),
+        api.get('/dashboard/recent-bills'),
+        api.get('/dashboard/recent-customers'),
       ]);
       setStats(s.data);
-      setChart(c.data);
-      setAlerts(a.data);
-      setTopProducts(tp.data);
-      setRecentSales(rs.data);
+      setRecent(r.data);
+      setActivity(a.data);
     } catch (e) {
-      console.error('Dashboard load error:', e);
+      setError(errMsg(e));
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (loading) {
+    return (
+      <div className="space-y-4 animate-pulse" aria-busy="true" aria-label={t('common.loading')}>
+        <div className="h-16 bg-slate-200 rounded-xl" />
+        <div className="grid grid-cols-2 gap-3">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-slate-200 rounded-xl" />)}
+        </div>
+        <div className="h-48 bg-slate-200 rounded-xl" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-md mx-auto mt-10 text-center" role="alert">
+        <p className="text-sm text-slate-600 font-semibold">{error}</p>
+        <button onClick={load} className="mt-3 px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold">
+          {t('common.retry')}
+        </button>
+      </div>
+    );
+  }
+
+  const firstName = (user?.name || '').split(' ')[0] || '';
+  const metrics = [
+    {
+      key: 'sales', label: t('dashboard.todaysSales'),
+      value: fmt(stats?.today?.sales_paise || 0),
+      sub: `${stats?.today?.bills || 0} ${t('dashboard.bills')}`,
+      testId: DASHBOARD.todaySales, accent: 'emerald', icon: IndianRupee,
+    },
+    {
+      key: 'bills', label: t('dashboard.bills'),
+      value: String(stats?.today?.bills || 0),
+      sub: `${stats?.today?.customers || 0} ${t('dashboard.customersToday')}`,
+      testId: DASHBOARD.monthlySales, accent: 'blue', icon: Receipt,
+    },
+    {
+      key: 'customers', label: t('dashboard.totalCustomers'),
+      value: String(stats?.customers?.total || 0),
+      sub: `+${stats?.customers?.new_today || 0} · ${t('dashboard.repeatCustomers')}: ${stats?.customers?.repeat || 0}`,
+      testId: DASHBOARD.totalCustomers, accent: 'violet', icon: Users,
+    },
+    {
+      key: 'margin', label: t('dashboard.marginToday'),
+      value: fmt(stats?.metrics?.today?.margin_paise || 0),
+      sub: t('dashboard.marginSub'),
+      testId: 'today-margin', accent: 'teal', icon: TrendingUp,
+    },
+    {
+      key: 'dhanlabh', label: t('dashboard.dhanlabhToday'),
+      value: `${stats?.metrics?.today?.loyalty_earned || 0} 🪙`,
+      sub: t('dashboard.dhanlabhSub'),
+      testId: 'today-dhanlabh', accent: 'rose', icon: Gift,
+    },
+    {
+      key: 'credit', label: t('dashboard.creditDue'),
+      value: fmt(stats?.outstanding_paise || 0),
+      sub: `${stats?.credit_accounts || 0} ${t('nav.customers')}`,
+      testId: DASHBOARD.outstanding, accent: 'amber', icon: CreditCard,
+    },
+  ];
+
+  const accentMap = {
+    emerald: 'bg-emerald-50 text-emerald-600',
+    blue: 'bg-blue-50 text-blue-600',
+    violet: 'bg-violet-50 text-violet-600',
+    amber: 'bg-amber-50 text-amber-600',
+    teal: 'bg-teal-50 text-teal-600',
+    rose: 'bg-rose-50 text-rose-600',
   };
-
-  const fmt = (n) => `₹${(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
-
-  if (loading) return (
-    <div className="space-y-4 animate-pulse">
-      {[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-slate-200 rounded-xl" />)}
-    </div>
-  );
-
-  const alertConfig = { low_stock: { color: 'amber', icon: Package }, udhaar: { color: 'red', icon: CreditCard }, inactive: { color: 'blue', icon: Users } };
 
   return (
     <div data-testid={DASHBOARD.page} className="space-y-5 animate-fadeInUp">
       {/* Greeting */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-extrabold text-slate-800" style={{fontFamily:'Outfit,sans-serif'}}>
-            Good {new Date().getHours() < 12 ? 'Morning' : new Date().getHours() < 17 ? 'Afternoon' : 'Evening'}!
+      <div className="flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-extrabold text-slate-800 truncate" style={{ fontFamily: 'Outfit,sans-serif' }}>
+            {t(greetingKey(), { name: firstName })}
           </h1>
-          <p className="text-slate-500 text-sm mt-0.5">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+          <p className="text-sm text-slate-500 truncate">{activeShop?.name}</p>
         </div>
-        <button onClick={() => navigate('/voice')} className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-3 py-2 rounded-xl text-xs font-semibold shadow-sm hover:opacity-90">
-          <Mic className="w-3.5 h-3.5" />
-          Voice
-        </button>
+        <div className="text-right text-xs text-slate-400 hidden sm:block">
+          {longDate(new Date(), lang)}
+        </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* Primary action */}
+      <button
+        data-testid={DASHBOARD.newBillBtn}
+        onClick={() => navigate('/billing')}
+        className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-base shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 transition-transform"
+      >
+        <Plus className="w-5 h-5" /> {t('nav.newBill')}
+      </button>
+
+      {/* Secondary actions */}
+      <div className="grid grid-cols-3 gap-2.5">
         {[
-          { label: "Today's Sales", value: fmt(stats?.today?.revenue), sub: `${stats?.today?.orders || 0} orders`, icon: ShoppingCart, color: 'emerald', trend: '+12%', testId: DASHBOARD.todaySales },
-          { label: "Monthly Revenue", value: fmt(stats?.month?.revenue), sub: `${stats?.month?.orders || 0} orders`, icon: TrendingUp, color: 'blue', trend: '+8%', testId: DASHBOARD.monthlySales },
-          { label: "Total Customers", value: stats?.customers?.total || 0, sub: `+${stats?.customers?.new_today || 0} today`, icon: Users, color: 'purple', testId: DASHBOARD.totalCustomers },
-          { label: "Outstanding", value: fmt(stats?.outstanding), sub: 'Udhaar due', icon: CreditCard, color: 'red', testId: DASHBOARD.outstanding },
-        ].map(({ label, value, sub, icon: Icon, color, trend, testId }) => (
-          <div key={label} data-testid={testId} className="stat-card card-hover">
-            <div className="flex items-start justify-between mb-3">
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center bg-${color}-50`}>
-                <Icon className={`w-4.5 h-4.5 text-${color}-600`} style={{width:'18px',height:'18px'}} />
+          { label: t('dashboard.addCustomer'), icon: UserPlus, to: '/customers?add=1' },
+          { label: t('dashboard.addProduct'), icon: Package, to: '/products?add=1' },
+          { label: t('dashboard.collectCredit'), icon: Wallet, to: '/credit' },
+        ].map(({ label, icon: Icon, to }) => (
+          <button
+            key={label}
+            onClick={() => navigate(to)}
+            className="flex flex-col items-center gap-1.5 bg-white border border-slate-200 rounded-xl py-3 px-2 text-slate-600 hover:border-emerald-300 hover:text-emerald-700 transition-colors"
+          >
+            <Icon className="w-4.5 h-4.5" style={{ width: 18, height: 18 }} />
+            <span className="text-[11px] font-semibold text-center leading-tight">{label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Today's Actions — real-data priorities */}
+      <TodaysActions />
+
+      {/* Primary metrics */}
+      <div className="grid grid-cols-2 gap-3" data-testid={DASHBOARD.alertsSection ? undefined : undefined}>
+        {metrics.map(({ key, label, value, sub, testId, accent, icon: Icon }) => (
+          <div key={key} data-testid={testId} className="stat-card card-hover">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-slate-500">{label}</p>
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${accentMap[accent]}`}>
+                <Icon className="w-4 h-4" />
               </div>
-              {trend && <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full flex items-center gap-0.5"><ArrowUpRight className="w-3 h-3" />{trend}</span>}
             </div>
-            <p className="text-2xl font-bold font-mono text-slate-800">{value}</p>
-            <p className="text-xs text-slate-400 mt-0.5 font-medium">{label}</p>
-            <p className="text-xs text-slate-400">{sub}</p>
+            <p className="text-xl font-extrabold font-mono text-slate-800 mt-1.5 tracking-tight">{value}</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">{sub}</p>
           </div>
         ))}
       </div>
 
-      {/* Quick Actions */}
-      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4">
-        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Quick Actions</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {[
-            { label: 'New Bill', icon: ShoppingCart, color: 'bg-emerald-500', to: '/billing', testId: DASHBOARD.newBillBtn },
-            { label: 'Add Customer', icon: Users, color: 'bg-blue-500', to: '/customers', testId: DASHBOARD.addCustomerBtn },
-            { label: 'Add Product', icon: Package, color: 'bg-amber-500', to: '/products' },
-            { label: 'AI Assistant', icon: Sparkles, color: 'bg-purple-500', to: '/assistant' },
-          ].map(({ label, icon: Icon, color, to, testId }) => (
-            <button key={label} data-testid={testId} onClick={() => navigate(to)} className={`flex items-center gap-2.5 px-3 py-3 rounded-xl text-white ${color} hover:opacity-90 transition-opacity`}>
-              <Icon className="w-4 h-4 flex-shrink-0" />
-              <span className="text-sm font-semibold">{label}</span>
-            </button>
-          ))}
+      {/* Quick month summary strip */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm px-4 py-3 flex items-center justify-between text-sm">
+        <div>
+          <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">{t('dashboard.monthSales')}</p>
+          <p className="font-bold font-mono text-slate-800">{fmt(stats?.month?.sales_paise || 0)}</p>
         </div>
-      </div>
-
-      {/* Sales Chart */}
-      <div data-testid={DASHBOARD.salesChart} className="bg-white rounded-xl border border-slate-100 shadow-sm p-4">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="font-bold text-slate-700" style={{fontFamily:'Outfit,sans-serif'}}>Sales Trend</h3>
-            <p className="text-xs text-slate-400">Last 30 days</p>
-          </div>
-          <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
-            {fmt(stats?.month?.revenue)} this month
-          </span>
+        <div className="text-right">
+          <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">{t('dashboard.avgBill')}</p>
+          <p className="font-bold font-mono text-slate-800">{fmt(stats?.month?.avg_bill_paise || 0)}</p>
         </div>
-        <ResponsiveContainer width="100%" height={180}>
-          <AreaChart data={chart} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
-            <defs>
-              <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#10B981" stopOpacity={0.15} />
-                <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} interval={4} />
-            <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} tickFormatter={v => `₹${v >= 1000 ? (v/1000).toFixed(0)+'k' : v}`} />
-            <Tooltip formatter={(v) => [`₹${v.toLocaleString('en-IN')}`, 'Revenue']} labelStyle={{ color: '#334155' }} contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
-            <Area type="monotone" dataKey="revenue" stroke="#10B981" strokeWidth={2} fill="url(#salesGradient)" dot={false} />
-          </AreaChart>
-        </ResponsiveContainer>
+        <button onClick={() => navigate('/reports')} className="text-emerald-700 font-semibold text-xs flex items-center gap-0.5">
+          {t('dashboard.viewReports')} <ChevronRight className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Alerts */}
-        {alerts.length > 0 && (
-          <div data-testid={DASHBOARD.alertsSection} className="bg-white rounded-xl border border-slate-100 shadow-sm p-4">
-            <h3 className="font-bold text-slate-700 mb-3" style={{fontFamily:'Outfit,sans-serif'}}>Action Required</h3>
-            <div className="space-y-2">
-              {alerts.map((alert, i) => {
-                const conf = alertConfig[alert.type] || alertConfig.inactive;
-                const Icon = conf.icon;
-                const c = conf.color;
-                return (
-                  <div key={i} className={`flex items-center gap-3 p-3 rounded-xl bg-${c === 'amber' ? 'amber' : c === 'red' ? 'red' : 'blue'}-50 border border-${c === 'amber' ? 'amber' : c === 'red' ? 'red' : 'blue'}-100`}>
-                    <div className={`w-8 h-8 rounded-lg bg-${c === 'amber' ? 'amber' : c === 'red' ? 'red' : 'blue'}-100 flex items-center justify-center flex-shrink-0`}>
-                      <Icon className={`w-4 h-4 text-${c === 'amber' ? 'amber' : c === 'red' ? 'red' : 'blue'}-600`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-700">{alert.title}</p>
-                      <p className="text-xs text-slate-500">{alert.message}</p>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-slate-300" />
-                  </div>
-                );
-              })}
-            </div>
+        {/* Recent bills */}
+        <section className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-50">
+            <h2 className="text-sm font-bold text-slate-700">{t('dashboard.recentBills')}</h2>
+            <button onClick={() => navigate('/bills')} className="text-xs font-semibold text-emerald-700 hover:underline">
+              {t('common.viewAll')}
+            </button>
           </div>
-        )}
-
-        {/* Top Products */}
-        {topProducts.length > 0 && (
-          <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4">
-            <h3 className="font-bold text-slate-700 mb-3" style={{fontFamily:'Outfit,sans-serif'}}>Top Products (This Month)</h3>
-            <div className="space-y-2">
-              {topProducts.slice(0, 5).map((p, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-500 text-xs font-bold flex items-center justify-center flex-shrink-0">{i+1}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-700 truncate">{p.name}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <div className="h-1.5 bg-emerald-100 rounded-full flex-1">
-                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min((p.revenue / topProducts[0].revenue) * 100, 100)}%` }} />
-                      </div>
+          {recent.length === 0 ? (
+            <div className="px-4 py-8 text-center">
+              <Receipt className="w-8 h-8 text-slate-300 mx-auto" />
+              <p className="text-sm font-semibold text-slate-600 mt-2">{t('dashboard.noBills')}</p>
+              <p className="text-xs text-slate-400">{t('dashboard.noBillsSub')}</p>
+            </div>
+          ) : (
+            <ul className="divide-y divide-slate-50">
+              {recent.slice(0, 6).map((b) => (
+                <li key={b.id}>
+                  <button
+                    onClick={() => navigate(b.legacy ? '/bills' : `/bills/${b.id}`)}
+                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 text-left"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-700 truncate">
+                        {b.customer?.name || b.customer_name || t('billing.walkin')}
+                      </p>
+                      <p className="text-[11px] text-slate-400">{b.invoice_number}</p>
                     </div>
-                  </div>
-                  <span className="text-sm font-mono font-semibold text-slate-700 text-right">{fmt(p.revenue)}</span>
-                </div>
+                    <div className="text-right flex-shrink-0 ml-3">
+                      <p className="text-sm font-bold font-mono text-slate-800">{fmt(b.total_paise || 0)}</p>
+                      <p className={`text-[11px] font-semibold capitalize ${
+                        b.status === 'VOIDED' ? 'text-red-500'
+                          : b.payment_status === 'credit' || b.payment_status === 'pending' ? 'text-amber-600'
+                          : 'text-emerald-600'}`}>
+                        {b.status === 'VOIDED' ? t('billsList.voided')
+                          : b.payment_status === 'partial' ? t('billsList.partial')
+                          : b.payment_status === 'credit' || b.payment_status === 'pending' ? t('billsList.pending')
+                          : t('billsList.paid')}
+                      </p>
+                    </div>
+                  </button>
+                </li>
               ))}
-            </div>
-          </div>
-        )}
-      </div>
+            </ul>
+          )}
+        </section>
 
-      {/* Recent Sales */}
-      {recentSales.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between p-4 border-b border-slate-50">
-            <h3 className="font-bold text-slate-700" style={{fontFamily:'Outfit,sans-serif'}}>Recent Sales</h3>
-            <button onClick={() => navigate('/billing')} className="text-xs text-emerald-600 font-semibold hover:underline">View All</button>
-          </div>
-          <div className="divide-y divide-slate-50">
-            {recentSales.slice(0, 5).map((sale) => (
-              <div key={sale.id} className="flex items-center gap-3 px-4 py-3">
-                <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                  <ShoppingCart className="w-4 h-4 text-emerald-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-700 truncate">{sale.customer_name || 'Walk-in Customer'}</p>
-                  <p className="text-xs text-slate-400">{sale.invoice_number} · {new Date(sale.created_at).toLocaleDateString('en-IN')}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold font-mono text-slate-700">{fmt(sale.total_amount)}</p>
-                  <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${sale.payment_status === 'paid' ? 'bg-emerald-50 text-emerald-600' : sale.payment_status === 'pending' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
-                    {sale.payment_status}
-                  </span>
-                </div>
+        {/* Credit due + activity */}
+        <div className="space-y-4">
+          <section className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden" data-testid={DASHBOARD.outstanding}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-50">
+              <h2 className="text-sm font-bold text-slate-700">{t('dashboard.creditDueList')}</h2>
+              <button onClick={() => navigate('/credit')} className="text-xs font-semibold text-emerald-700 hover:underline">
+                {t('common.viewAll')}
+              </button>
+            </div>
+            <div className="px-4 py-3 flex items-center justify-between">
+              <div>
+                <p className="text-2xl font-extrabold font-mono text-slate-800">{fmt(stats?.outstanding_paise || 0)}</p>
+                <p className="text-[11px] text-slate-400">{stats?.credit_accounts || 0} {t('nav.customers')}</p>
               </div>
-            ))}
-          </div>
+              <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
+                <CreditCard className="w-5 h-5 text-red-500" />
+              </div>
+            </div>
+            {(stats?.outstanding_paise || 0) === 0 && (
+              <p className="px-4 pb-4 text-xs text-emerald-600 font-medium">{t('dashboard.noCredit')}</p>
+            )}
+          </section>
+
+          <section className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-50">
+              <h2 className="text-sm font-bold text-slate-700">{t('dashboard.customerActivity')}</h2>
+              <Activity className="w-4 h-4 text-slate-400" />
+            </div>
+            {activity.length === 0 ? (
+              <div className="px-4 py-6 text-center">
+                <p className="text-xs text-slate-400">{t('dashboard.noActivity')}</p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-slate-50">
+                {activity.slice(0, 5).map((c) => (
+                  <li key={c.id} className="px-4 py-2.5 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-700 truncate">{c.name}</p>
+                      <p className="text-[11px] text-slate-400">
+                        {c.purchase_count > 0
+                          ? `${c.purchase_count} × ${t('customers.purchases')} · ${fmt(c.total_spend_paise || 0)}`
+                          : t('customers.never')}
+                      </p>
+                    </div>
+                    <span className="text-[11px] text-slate-400 flex-shrink-0">{timeAgo(c.last_purchase_at || c.created_at, t)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         </div>
-      )}
+      </div>
     </div>
   );
 }

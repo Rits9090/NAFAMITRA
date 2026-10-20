@@ -138,6 +138,25 @@ let webpackConfig = {
 };
 
 webpackConfig.devServer = (devServerConfig) => {
+  // Preview sandbox: accept the proxied public host (e2b.app) and proxy the
+  // API same-origin so the browser never has to reach localhost directly.
+  devServerConfig.allowedHosts = 'all';
+  // Dev bundles are un-hashed — without this the edge proxy/browser can pin
+  // an old bundle and reproduce fixed runtime errors (e.g. missing provider).
+  devServerConfig.headers = {
+    ...(devServerConfig.headers || {}),
+    'Cache-Control': 'no-store, must-revalidate',
+  };
+  devServerConfig.host = process.env.HOST || '0.0.0.0';
+  devServerConfig.proxy = [
+    {
+      context: ['/api'],
+      target: process.env.BACKEND_PROXY_TARGET || 'http://127.0.0.1:8001',
+      changeOrigin: true,
+      secure: false,
+    },
+  ];
+
   // Add health check endpoints if enabled
   if (config.enableHealthCheck && setupHealthEndpoints && healthPluginInstance) {
     const originalSetupMiddlewares = devServerConfig.setupMiddlewares;
