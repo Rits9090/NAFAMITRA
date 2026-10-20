@@ -65,6 +65,24 @@ function check(name, ok, extra) {
 }
 
 (async () => {
+  // ── Unit: isAuthMePayload — static hosts answer unknown paths (incl. /api/*)
+  // with `200 text/html` SPA fallback; that body must NEVER become a session.
+  {
+    const fs = require('fs');
+    const path = require('path');
+    const src = fs.readFileSync(path.resolve(__dirname, '..', 'src', 'lib', 'api.js'), 'utf8');
+    const m = src.match(/export function isAuthMePayload([\s\S]*?\n})/);
+    let ok = false;
+    if (m) {
+      const fn = new Function(`return function isAuthMePayload${m[1]}`)();
+      ok = fn({ user: { id: 'u1' }, identities: { shops: [] } }) === true
+        && fn('<!DOCTYPE html><html><body>app shell</body></html>') === false
+        && fn(null) === false && fn(undefined) === false && fn([]) === false
+        && fn({ user: {} }) === false;
+    }
+    check('unit isAuthMePayload: HTML/null/array rejected, identity payload accepted', ok);
+  }
+
   const TARGET = process.env.SMOKE_URL || 'http://127.0.0.1:3000/';
   const dom = await JSDOM.fromURL(TARGET, {
     runScripts: 'dangerously', resources: new LocalOnly(), pretendToBeVisual: true, virtualConsole: vc,

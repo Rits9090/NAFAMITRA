@@ -91,3 +91,6 @@ credentials.json
 *.key
 .credentials
 frontend/node_modules/.cache/default-development/0.pack
+
+# Committed production defaults (no secrets — demo flag only); .env.local stays ignored
+!frontend/.env.production

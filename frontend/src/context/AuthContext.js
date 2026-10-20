@@ -12,7 +12,7 @@
  * backend unless explicitly enabled (ALLOW_PHONE_OTP).
  */
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import api, { setUnauthorizedHandler, errMsg, setSessionToken, clearSessionToken, beginDemo } from '@/lib/api';
+import api, { setUnauthorizedHandler, errMsg, setSessionToken, clearSessionToken, beginDemo, isAuthMePayload } from '@/lib/api';
 import { getSupabase, tryGetSupabase } from '@/lib/supabase';
 import { signOutEverywhere } from '@/lib/authActions';
 import { DEMO_ENABLED } from '@/lib/demoFlag';
@@ -65,6 +65,13 @@ export function AuthProvider({ children }) {
     if (!tok) { setLoading(false); return; }
     try {
       const { data } = await api.get('/auth/me');
+      if (!isAuthMePayload(data)) {
+        // Static host / missing backend answered with HTML or a non-identity
+        // body — never treat it as a session; tell the user honestly.
+        clearSession();
+        setBootError({ code: 'backend_unavailable' });
+        return;
+      }
       setMe(data);
       const shops = data?.identities?.shops || [];
       // keep a valid saved shop, else fall back to the first one

@@ -181,6 +181,43 @@ through a secure secret mechanism (never chat, argv, or logs).
 | Auth gates default-off (fresh env) | 403/404/403 verified |
 | `login_e2e` (jsdom) | **PASS** — submission URL proves project `izfcjxabnahcsmzhosuo.supabase.co`, pkce token endpoint, phone in `user_metadata` only, honest network error, no fake session |
 | `auth_error_e2e` html404/rate429/badphone | **PASS ×3** |
-| `prod_safety_e2e` (demo-disabled build) | **PASS** — no demo code/UI, poisoned flag ignored+purged, correct project in bundle |
-| `render_smoke` / `demo_e2e` / `qa_e2e` (12/12) / `i18ncheck` 938 keys | **PASS** |
+| `prod_safety_e2e` (demo-disabled build, 19 checks) | **PASS** — no demo code/UI, poisoned flag ignored+purged, correct project, **ZIP simulation (no `.env.local`) also PASS**: runtime `env.js` config → no "not configured" banner, sign-in reaches project, Google initiates OAuth, `404.html` SPA fallback present |
+| `render_smoke` / `demo_e2e` / `qa_e2e` (12/12) / `i18ncheck` **939 keys** | **PASS** |
+| `login_e2e` incl. `isAuthMePayload` unit (HTML/null/array rejected) | **PASS (27 checks)** |
 | `CI=true yarn build` | **PASS** (warnings-as-errors) |
+
+
+## 11. Self-hosted static builds (GitHub ZIP / GitHub Pages / any static host)
+
+A build made from a plain GitHub ZIP has **no `.env.local`** (it is gitignored),
+so the old bundle shipped with empty Supabase config — users saw
+"Sign-in is not configured, please contact administrator" and Google showed a
+generic error. Fixed with runtime configuration:
+
+| Piece | File | Purpose |
+|---|---|---|
+| Runtime public config | `frontend/public/env.js` (`window.__NAFAMITRA_ENV__`) | Publishable Supabase URL + key + backend URL. Ships inside `build/`; **editable after download — no rebuild needed**. Build-time env still wins when present. |
+| Loader | `frontend/public/index.html` | Loads `env.js` before the app bundle. |
+| Prod defaults | `frontend/.env.production` (committed) | Demo flag defined-as-empty for production builds so demo code is dead-code-eliminated even with no other env file. `.env.local` outranks it for local dev builds. |
+| SPA fallback | `build/404.html` (written by `scripts/postbuild.js`) | Static hosts (GitHub Pages) 404 on deep links (`/auth/callback`) without a rewrite rule; the host serves `404.html` → the SPA boots on any URL. |
+| API identity guard | `isAuthMePayload` in `src/lib/api.js` + `AuthContext.loadMe` | Static hosts answer unknown paths — including `/api/*` — with `200 text/html`; that body is rejected (never a fake session) and the UI shows an honest localized `auth.errBackendUnavailable` boot note. |
+
+**Backend**: a static host has no `/api`. Either deploy the FastAPI backend and
+set `REACT_APP_BACKEND_URL` (in `env.js`, without the `/api` suffix) — e.g.
+`https://your-api.onrender.com` — or put the API on the same origin under
+`/api` via a proxy. Without one, dashboards cannot load data (clearly reported,
+never silently broken).
+
+**Supabase dashboard for YOUR origin** (external, per-user):
+1. Authentication → URL Configuration → add your exact origin: Site URL
+   `https://<your-host>` and Redirect URLs `https://<your-host>/auth/callback`
+   (plus `http://localhost:3000/auth/callback` for local dev).
+2. Authentication → Providers → enable **Google** (client secret stays in
+   Supabase) and add the same redirect URLs.
+3. Passwords: never commit them. If a database password or connection string
+   was ever pasted into a chat/ticket, treat it as exposed and rotate it in
+   Supabase (Settings → Database) before any direct DB use — the app itself
+   never needs it (only the publishable URL/key go in `env.js`).
+
+**Never** put `sb_secret_*`, JWT secrets, DB passwords or SMTP credentials in
+`env.js` (it is public by definition) or anywhere in the frontend bundle.

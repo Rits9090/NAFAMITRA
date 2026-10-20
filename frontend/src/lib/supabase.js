@@ -17,11 +17,32 @@ import { createClient } from '@supabase/supabase-js';
 
 export const SUPABASE_STORAGE_KEY = 'nafamitra_supabase_auth';
 
-/** Pure env reader — exported for tests. */
-export function readSupabaseConfig(env = process.env) {
-  const url = String(env.REACT_APP_SUPABASE_URL || '').trim().replace(/\/+$/, '');
+/** Runtime override file (public/env.js) — fills gaps when the build had no
+ *  .env (ZIP downloads, static hosts). Build-time env still wins. */
+function runtimeEnv() {
+  try {
+    return (typeof window !== 'undefined' && window.__NAFAMITRA_ENV__) || {};
+  } catch { return {}; }
+}
+
+/** Pure env reader — exported for tests. Pass an object to test in isolation;
+ *  no argument ⇒ build-time process.env with runtime env.js fallback. */
+export function readSupabaseConfig(env) {
+  let source = env;
+  if (!source) {
+    const built = (typeof process !== 'undefined' && process.env) || {};
+    const runtime = runtimeEnv();
+    source = {
+      REACT_APP_SUPABASE_URL: built.REACT_APP_SUPABASE_URL || runtime.REACT_APP_SUPABASE_URL || '',
+      REACT_APP_SUPABASE_PUBLISHABLE_KEY: built.REACT_APP_SUPABASE_PUBLISHABLE_KEY
+        || runtime.REACT_APP_SUPABASE_PUBLISHABLE_KEY || '',
+      REACT_APP_SUPABASE_ANON_KEY: built.REACT_APP_SUPABASE_ANON_KEY
+        || runtime.REACT_APP_SUPABASE_ANON_KEY || '',
+    };
+  }
+  const url = String(source.REACT_APP_SUPABASE_URL || '').trim().replace(/\/+$/, '');
   const key = String(
-    env.REACT_APP_SUPABASE_PUBLISHABLE_KEY || env.REACT_APP_SUPABASE_ANON_KEY || ''
+    source.REACT_APP_SUPABASE_PUBLISHABLE_KEY || source.REACT_APP_SUPABASE_ANON_KEY || ''
   ).trim();
   const missing = [];
   if (!url) missing.push('REACT_APP_SUPABASE_URL');
@@ -79,6 +100,7 @@ export function tryGetSupabase() {
  */
 export function supabaseAuthErrorKey(err) {
   if (!err) return null;
+  if (err.code === 'supabase_config') return 'auth.errConfigMissing';
   const code = String(err.code || err.name || '');
   const msg = `${err.message || ''} ${err.error_description || err.error_code || ''}`;
   if (/invalid_credentials/i.test(code) || /invalid login credentials/i.test(msg)) {
@@ -99,7 +121,8 @@ export function supabaseAuthErrorKey(err) {
   if (/user_not_found|identity_not_found/i.test(code)) {
     return 'auth.errNoAccount';
   }
-  if (/provider.*not.*enabled|unsupported|not enabled/i.test(msg)) {
+  if (/provider.*not.*enabled|unsupported|not enabled|redirect_uri|invalid request.*redirect|not authorized to perform/i.test(msg)
+      || /provider.*disabled/i.test(msg)) {
     return 'auth.errProviderMissing';
   }
   if (/access_denied|cancelled|cancel/i.test(msg)) {

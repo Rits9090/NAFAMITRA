@@ -223,7 +223,13 @@ def test_http_profile_and_me_with_supabase_token():
     import requests
     base = os.environ['REACT_APP_BACKEND_URL'].rstrip('/')
     sub = str(uuid.uuid4())
-    token = mint(sub=sub, email='http.e2e@example.com')
+    # unique per run: the live server's store is persistent, and a second
+    # run with the same email but a new sub intentionally keeps the Supabase
+    # profile's email out of the shared unique column (see ensure_supabase_person)
+    unique_email = f'http.e2e.{uuid.uuid4().hex[:10]}@example.com'
+    # unique phone too: persistent stores keep earlier runs' links (phone_taken)
+    unique_local = '9' + f'{uuid.uuid4().int % 1000000000:09d}'
+    token = mint(sub=sub, email=unique_email)
     hdr = {'Authorization': f'Bearer {token}'}
 
     me = requests.get(f'{base}/api/auth/me', headers=hdr, timeout=10)
@@ -231,12 +237,12 @@ def test_http_profile_and_me_with_supabase_token():
     body = me.json()
     assert body['user']['id'] == sub, 'profile id must be the auth UUID (sub)'
     assert body['user'].get('created_via') == 'supabase'
-    assert body['user'].get('email') == 'http.e2e@example.com'
+    assert body['user'].get('email') == unique_email
 
     put = requests.put(f'{base}/api/auth/profile',
-                       json={'phone_number': '+919876511111'}, headers=hdr, timeout=10)
+                       json={'phone_number': f'+91{unique_local}'}, headers=hdr, timeout=10)
     assert put.status_code == 200, put.text
-    assert put.json()['user']['phone'] == '9876511111'
+    assert put.json()['user']['phone'] == unique_local
 
     # same call twice → still one profile (login again doesn't duplicate)
     me2 = requests.get(f'{base}/api/auth/me', headers=hdr, timeout=10)

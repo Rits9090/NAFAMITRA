@@ -22,9 +22,15 @@ class LocalOnly extends ResourceLoader {
 }
 
 const SUPABASE_HOST = 'izfcjxabnahcsmzhosuo.supabase.co';
+const authNet = [];   // Supabase auth fetch attempts (records runtime config use)
 const pageErrors = [];
 const vc = new VirtualConsole();
-vc.on('jsdomError', (e) => { const m = e.stack || e.message; if (!/Could not load link|Could not parse CSS/i.test(m)) pageErrors.push(m); });
+vc.on('jsdomError', (e) => {
+  const m = e.stack || e.message;
+  // "Not implemented: navigation" = supabase-js attempted the real OAuth
+  // redirect (jsdom cannot navigate) — expected, not an app error.
+  if (!/Could not load link|Could not parse CSS|Not implemented: navigation/i.test(m)) pageErrors.push(m);
+});
 vc.on('error', (...a) => pageErrors.push('console.error: ' + a.map(String).join(' ')));
 vc.on('warn', () => {});
 vc.on('log', () => {});
@@ -36,6 +42,8 @@ function check(name, ok, extra) {
   else { failures++; console.log('  ✗', name, extra !== undefined ? String(extra).slice(0, 250) : ''); }
 }
 
+const sleep2 = (ms) => new Promise((r) => setTimeout(r, ms));
+
 async function open(url, seedDemo) {
   return JSDOM.fromURL(url, {
     runScripts: 'dangerously', resources: new LocalOnly(), pretendToBeVisual: true, virtualConsole: vc,
@@ -43,7 +51,11 @@ async function open(url, seedDemo) {
       window.matchMedia = (q) => ({ matches: false, media: q, addListener() {}, removeListener() {},
         addEventListener() {}, removeEventListener() {}, dispatchEvent() { return false; } });
       window.scrollTo = () => {};
-      window.fetch = () => Promise.reject(new TypeError('Failed to fetch'));
+      window.fetch = (input) => {
+        const u = typeof input === 'string' ? input : (input && input.url) || String(input);
+        authNet.push(String(u));
+        return Promise.reject(new TypeError('Failed to fetch'));
+      };
       if (!window.Element.prototype.scrollIntoView) window.Element.prototype.scrollIntoView = () => {};
       if (seedDemo) { try { window.localStorage.setItem('nafamitra_demo', seedDemo); } catch { /* */ } }
       window.addEventListener('error', (e) => pageErrors.push('onerror: ' + ((e.error && e.error.stack) || e.message)));
@@ -56,14 +68,21 @@ async function open(url, seedDemo) {
   const BASE = process.env.SMOKE_URL || 'http://127.0.0.1:3112/';
   console.log('== PROD SAFETY E2E (demo-disabled build) ==', BASE);
 
-  // 2. bundle-level check first (cheap, no DOM)
+  // 2. asset-level checks (cheap, no DOM)
   const jsDir = path.resolve(__dirname, '..', 'build', 'static', 'js');
   const files = fs.readdirSync(jsDir).filter((f) => f.endsWith('.js'));
   const bundle = files.map((f) => fs.readFileSync(path.join(jsDir, f), 'utf8')).join('\n');
   check('bundle has NO demo-entry code (explore-demo)', !bundle.includes('explore-demo'));
   check('bundle has NO demo chooser testid', !bundle.includes('demo-picker'));
-  check('bundle targets intended Supabase project', bundle.includes(SUPABASE_HOST));
-  check('bundle has publishable-key config name', bundle.includes('REACT_APP_SUPABASE_URL') || bundle.includes(SUPABASE_HOST));
+  // ZIP builds have no .env → config must come from public/env.js at runtime
+  const envJsPath = path.resolve(__dirname, '..', 'build', 'env.js');
+  const envJs = fs.existsSync(envJsPath) ? fs.readFileSync(envJsPath, 'utf8') : '';
+  check('build/env.js ships with runtime Supabase config', envJs.includes(SUPABASE_HOST)
+    && envJs.includes('sb_publishable_'));
+  check('Supabase project present (bundle or env.js)', bundle.includes(SUPABASE_HOST) || envJs.includes(SUPABASE_HOST));
+  check('404.html SPA fallback generated for static hosts', fs.existsSync(path.resolve(__dirname, '..', 'build', '404.html')));
+  const html = fs.readFileSync(path.resolve(__dirname, '..', 'build', 'index.html'), 'utf8');
+  check('index.html loads env.js before the app', html.includes('env.js'));
 
   // 1. /auth renders the real sign-in UI, no demo surfaces
   let dom = await open(BASE);
@@ -79,6 +98,43 @@ async function open(url, seedDemo) {
   check('NO demo entry anywhere on page', !win.document.querySelector('[data-testid="explore-demo"]')
     && !win.document.querySelector('[data-testid="demo-cta"]'));
   check('Google sign-in control present', !!(await wait('[data-testid="auth-google-btn"]')));
+  // The exact bug users hit with ZIP builds: no baked env ⇒ "not configured".
+  check('NO "sign-in not configured" banner (runtime env.js read)',
+    !win.document.querySelector('[data-testid="supabase-missing"]'));
+
+  // Real submission loads config from env.js → reaches the project URL
+  const setInput = (el, val) => {
+    const proto = win.HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, val);
+    el.dispatchEvent(new win.Event('input', { bubbles: true }));
+    el.dispatchEvent(new win.Event('change', { bubbles: true }));
+  };
+  setInput(win.document.querySelector('[data-testid="auth-email-input"]'), 'zip.build@example.com');
+  setInput(win.document.querySelector('[data-testid="auth-password-input"]'), 'Supabase@123');
+  authNet.length = 0;
+  win.document.querySelector('[data-testid="auth-signin-form"]')
+    .dispatchEvent(new win.Event('submit', { bubbles: true, cancelable: true }));
+  const errEl = await wait('[data-testid="auth-error"]', 12000);
+  check('sign-in reaches intended project via runtime config',
+    authNet.some((u) => u.includes(SUPABASE_HOST)), JSON.stringify(authNet));
+  check('failure shows localized mapped error (no raw leak)',
+    !!errEl && /नेटवर्क|काहीतरी|कॉन्फिगर|internet/i.test(errEl.textContent), errEl && errEl.textContent);
+
+  // Google button: real OAuth starts a browser redirect (jsdom can't follow)
+  // and stores the PKCE verifier first — assert the flow INITIATED (or a
+  // mapped localized error showed), with no crash and no silent nothing.
+  authNet.length = 0;
+  const gbtn = win.document.querySelector('[data-testid="auth-google-btn"]');
+  if (gbtn) gbtn.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
+  await sleep2(1500);
+  const gErr = win.document.querySelector('[data-testid="auth-error"]');
+  const oauthKeys = Object.keys(win.localStorage).filter((k) => /code-verifier|code_challenge|oauth|pkce/i.test(k));
+  const gInitiated = oauthKeys.length > 0 || !!gErr;
+  check('Google click initiates real OAuth (PKCE verifier stored) or shows mapped error', gInitiated,
+    `verifierKeys=${JSON.stringify(oauthKeys)} err=${gErr && gErr.textContent}`);
+  check('Google click: no crash, no silent undefined',
+    (!gErr || (gErr.textContent.length > 5 && !/undefined|\[object/i.test(gErr.textContent)))
+    && pageErrors.length === 0, gErr && gErr.textContent);
   win.close();
 
   // 3. poisoned localStorage flag cannot unlock a protected shell

@@ -10,9 +10,15 @@ import { getDemo } from '@/demo/demoMode';
 import { demoHandle, resetDemoStore } from '@/demo/demoHandle';
 
 // Same-origin by default ('/api' → dev server proxies to the backend, and a
-// production host can proxy too). Set REACT_APP_BACKEND_URL only when the API
-// truly lives on another origin.
-const RAW_BASE = (process.env.REACT_APP_BACKEND_URL || '').replace(/\/+$/, '');
+// production host can proxy too). Set REACT_APP_BACKEND_URL when the API
+// truly lives on another origin — build-time env first, then runtime
+// public/env.js (for builds made from a plain ZIP with no .env).
+const RAW_BASE = ((
+  process.env.REACT_APP_BACKEND_URL
+  || (typeof window !== 'undefined' && window.__NAFAMITRA_ENV__
+    && window.__NAFAMITRA_ENV__.REACT_APP_BACKEND_URL)
+  || ''
+).replace(/\/+$/, ''));
 export const API_BASE = `${RAW_BASE}/api`;
 
 const store = {
@@ -218,6 +224,17 @@ export function fetchConfig(force = false) {
       }));
   }
   return configPromise;
+}
+
+/**
+ * Identity-payload guard: static hosts (GitHub Pages) answer unknown paths —
+ * including /api/* — with `200 text/html` (SPA fallback). Never accept HTML
+ * or malformed bodies as an authenticated identity.
+ */
+export function isAuthMePayload(data) {
+  return !!(data && typeof data === 'object' && !Array.isArray(data)
+    && data.user && typeof data.user === 'object' && data.identities
+    && typeof data.identities === 'object');
 }
 
 export default api;

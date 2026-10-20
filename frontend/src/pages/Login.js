@@ -515,8 +515,10 @@ export default function Login() {
           )}
 
           {bootError && (
-            <p className="text-[11px] text-center text-slate-400" data-testid="auth-boot-note">
-              {t('auth.errNetwork')}
+            <p className="text-[11px] text-center text-slate-500 font-medium" role="status" data-testid="auth-boot-note">
+              {bootError.code === 'supabase_config' ? t('auth.errConfigMissing')
+                : bootError.code === 'backend_unavailable' ? t('auth.errBackendUnavailable')
+                : t('auth.errNetwork')}
             </p>
           )}
 

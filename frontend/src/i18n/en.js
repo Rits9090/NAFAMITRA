@@ -101,6 +101,7 @@ export default {
     errGeneric: 'Something went wrong. Please try again.',
     errNetwork: 'No network connection. Check your internet and try again.',
     errConfigMissing: 'Sign-in is not configured. Please contact the administrator.',
+    errBackendUnavailable: 'The backend server is not reachable from this app configuration. Please contact the administrator.',
     errInvalidCredentials: 'Incorrect email or password.',
     errEmailNotConfirmed: 'Email not confirmed — open the link we sent you.',
     errEmailTaken: 'This email is already registered.',
